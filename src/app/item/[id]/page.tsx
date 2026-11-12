@@ -53,6 +53,25 @@ async function Item({ params }: { params: Promise<{ id: string }> }) {
         </p>
       </section>
 
+      {d.depth ? (
+        <section>
+          <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted">Listed right now</h2>
+          <p className="mb-2 text-sm text-muted">
+            From Blizzard&apos;s listing of {d.depth.at.toISOString().slice(5, 16).replace("T", " ")} UTC: {d.depth.totalQty.toLocaleString("en-US")} units
+            in {d.depth.auctions} auctions, {d.depth.qtyAtMin.toLocaleString("en-US")} at the cheapest price and{" "}
+            {d.depth.qtyNearMin.toLocaleString("en-US")} within 5% of it.
+          </p>
+          <ul className="max-w-sm divide-y divide-line rounded border border-line text-sm">
+            {d.depth.ladder.map(([price, qty]) => (
+              <li key={price} className="num flex justify-between px-3 py-1.5">
+                <span>{formatCopper(price)}</span>
+                <span className="text-muted">{qty.toLocaleString("en-US")}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
       <section>
         <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted">Your trades</h2>
         {d.mine.length ? (

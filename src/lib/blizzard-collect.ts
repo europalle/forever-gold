@@ -1,0 +1,112 @@
+import type { PrismaClient } from "@/generated/prisma/client";
+import { MARKET } from "@/config/player";
+import { decideBuyoutPerUnit, depthFrom, matchScore } from "./blizzard-depth";
+import { blizzardConfigured, commodities, houses, itemAuctions, rulesets } from "./blizzard";
+import { marketScope } from "./tsm";
+
+export type HouseChoice = {
+  rulesetId: number;
+  houseId: number;
+  houseName: string;
+  buyoutPerUnit: boolean;
+  chosenAt: string;
+  scores?: { houseId: number; name: string; commodityRows: number; score: number; compared: number }[];
+};
+
+const SETTING = "blizzardHouse";
+const KEEP_SNAPSHOTS = 72; // three days of hourly depth
+
+export async function getHouseChoice(db: PrismaClient): Promise<HouseChoice | null> {
+  const s = await db.setting.findUnique({ where: { key: SETTING } });
+  return (s?.value as HouseChoice | undefined) ?? null;
+}
+
+async function tsmMinBuyouts(db: PrismaClient): Promise<Map<number, number>> {
+  const latest = await db.snapshot.findFirst({ where: { kind: "MARKET", scope: marketScope(MARKET) }, orderBy: { sourceUpdatedAt: "desc" } });
+  if (!latest) return new Map();
+  const rows = await db.marketPrice.findMany({ where: { snapshotId: latest.id, minBuyout: { not: null } }, select: { itemId: true, minBuyout: true } });
+  return new Map(rows.map((r) => [r.itemId, r.minBuyout!]));
+}
+
+export type Discovery = {
+  ruleset: { id: number; name?: string };
+  candidates: { houseId: number; name: string; commodityRows: number; score: number; compared: number }[];
+  chosen: HouseChoice | null;
+  buyout: { perUnit: boolean; stacked: number; perUnitScore: number; perStackScore: number } | null;
+  note: string;
+};
+
+// Find which house is ours by comparing each Alliance house's commodity prices
+// with TSM's for EU PvP Alliance, then settle per-unit versus per-stack buyout
+// on the winner's item auctions. Saves the choice when the winner is clear.
+export async function discoverHouse(db: PrismaClient): Promise<Discovery> {
+  if (!blizzardConfigured()) throw new Error("BNET_CLIENT_ID and BNET_CLIENT_SECRET are not set on this deployment.");
+  const tsm = await tsmMinBuyouts(db);
+  if (!tsm.size) throw new Error("No TSM prices collected yet to compare against.");
+  const rs = await rulesets();
+  const ruleset = rs.find((r) => /^pvp$/i.test(r.name ?? "")) ?? rs.find((r) => r.id === 1) ?? rs[0];
+  if (!ruleset) throw new Error("Blizzard listed no rulesets.");
+  const all = await houses(ruleset.id);
+  const wanted = new RegExp(MARKET.faction, "i");
+  const list = all.filter((h) => wanted.test(h.name));
+  const candidates: Discovery["candidates"] = [];
+  for (const h of list.length ? list : all) {
+    const c = await commodities(ruleset.id, h.id);
+    const m = matchScore(depthFrom(c.auctions, false), tsm);
+    candidates.push({ houseId: h.id, name: h.name, commodityRows: c.auctions.length, ...m });
+  }
+  candidates.sort((a, b) => b.score - a.score);
+  const [best, second] = candidates;
+  const clear = best && best.compared >= 50 && best.score >= 0.3 && (!second || best.score >= second.score * 1.5);
+  let buyout: Discovery["buyout"] = null;
+  let chosen: HouseChoice | null = null;
+  if (best && clear) {
+    const items = await itemAuctions(ruleset.id, best.houseId);
+    buyout = decideBuyoutPerUnit(items.auctions, tsm);
+    chosen = { rulesetId: ruleset.id, houseId: best.houseId, houseName: best.name, buyoutPerUnit: buyout.stacked > 0 ? buyout.perUnit : false, chosenAt: new Date().toISOString(), scores: candidates };
+    await db.setting.upsert({ where: { key: SETTING }, create: { key: SETTING, value: chosen }, update: { value: chosen } });
+  }
+  return {
+    ruleset,
+    candidates,
+    chosen,
+    buyout,
+    note: clear
+      ? `Chose ${best.name} (${best.houseId}): ${Math.round(best.score * 100)}% of ${best.compared} shared items match TSM's cheapest price.`
+      : "No house matched TSM clearly enough to choose automatically. Pick one below if the scores make it obvious.",
+  };
+}
+
+export async function chooseHouse(db: PrismaClient, rulesetId: number, houseId: number, houseName: string, buyoutPerUnit: boolean) {
+  const value: HouseChoice = { rulesetId, houseId, houseName, buyoutPerUnit, chosenAt: new Date().toISOString() };
+  await db.setting.upsert({ where: { key: SETTING }, create: { key: SETTING, value }, update: { value } });
+}
+
+// Hourly: store the chosen house's depth when Blizzard has published a new listing.
+export async function collectBlizzard(db: PrismaClient) {
+  if (!blizzardConfigured()) return { kind: "BLIZZARD" as const, scope: "eu", status: "unchanged" as const, detail: "not configured" };
+  const choice = await getHouseChoice(db);
+  if (!choice) return { kind: "BLIZZARD" as const, scope: "eu", status: "unchanged" as const, detail: "no house chosen yet (Admin page)" };
+  const scope = `house-${choice.houseId}`;
+  const last = await db.depthSnapshot.findFirst({ where: { houseId: choice.houseId }, orderBy: { lastModified: "desc" } });
+  const c = await commodities(choice.rulesetId, choice.houseId, last?.lastModified);
+  if (c.status === 304) return { kind: "BLIZZARD" as const, scope, status: "unchanged" as const, detail: "304" };
+  if (c.status !== 200) return { kind: "BLIZZARD" as const, scope, status: "error" as const, detail: `commodities answered ${c.status}` };
+  const items = await itemAuctions(choice.rulesetId, choice.houseId);
+  if (items.status !== 200) return { kind: "BLIZZARD" as const, scope, status: "error" as const, detail: `item auctions answered ${items.status}` };
+  const lastModified = c.lastModified ?? new Date();
+  if (last && last.lastModified.getTime() === lastModified.getTime()) return { kind: "BLIZZARD" as const, scope, status: "unchanged" as const, detail: "same listing" };
+  const depth = depthFrom([...c.auctions, ...items.auctions], choice.buyoutPerUnit);
+  await db.$transaction(
+    async (tx) => {
+      const snap = await tx.depthSnapshot.create({
+        data: { houseId: choice.houseId, lastModified, itemCount: depth.size, auctionCount: c.auctions.length + items.auctions.length },
+      });
+      await tx.depthItem.createMany({ data: [...depth.values()].map((d) => ({ snapshotId: snap.id, ...d })) });
+    },
+    { timeout: 60_000 },
+  );
+  const old = await db.depthSnapshot.findMany({ where: { houseId: choice.houseId }, orderBy: { lastModified: "desc" }, skip: KEEP_SNAPSHOTS, select: { id: true } });
+  if (old.length) await db.depthSnapshot.deleteMany({ where: { id: { in: old.map((o) => o.id) } } });
+  return { kind: "BLIZZARD" as const, scope, status: "stored" as const, scanTime: lastModified.toISOString(), items: depth.size };
+}

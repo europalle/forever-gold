@@ -3,6 +3,9 @@ import { Suspense } from "react";
 import { Header } from "@/components/header";
 import { requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { blizzardConfigured } from "@/lib/blizzard";
+import { getHouseChoice } from "@/lib/blizzard-collect";
+import { BlizzardDiscovery } from "./blizzard";
 import { DeleteButton } from "./delete-button";
 import { revokeInvite } from "@/lib/actions/admin";
 import { inviteState } from "@/lib/invite";
@@ -37,6 +40,10 @@ async function Admin() {
   await connection();
   const me = await requireAdmin();
   const invites = await recentInvites();
+  const [house, lastDepth] = await Promise.all([
+    getHouseChoice(db),
+    db.depthSnapshot.findFirst({ orderBy: { lastModified: "desc" }, select: { lastModified: true, itemCount: true, auctionCount: true, fetchedAt: true } }),
+  ]);
   const users = await db.user.findMany({
     orderBy: { createdAt: "asc" },
     select: {
@@ -73,6 +80,25 @@ async function Admin() {
             </li>
           ))}
         </ul>
+      </section>
+      <section>
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted">Blizzard auction data</h2>
+        <div className="mb-3 max-w-prose space-y-1 text-sm text-muted">
+          {!blizzardConfigured() ? (
+            <p className="text-warn">BNET_CLIENT_ID and BNET_CLIENT_SECRET are not set on this deployment.</p>
+          ) : house ? (
+            <p>
+              Collecting from <span className="text-text">{house.houseName}</span> (house {house.houseId}, ruleset {house.rulesetId}), item auction
+              prices read {house.buyoutPerUnit ? "per unit" : "per stack"}.{" "}
+              {lastDepth
+                ? `Latest listing: ${day(lastDepth.lastModified)}, ${lastDepth.itemCount.toLocaleString("en-US")} items from ${lastDepth.auctionCount.toLocaleString("en-US")} auctions.`
+                : "No listing stored yet: the next hourly collection fetches one."}
+            </p>
+          ) : (
+            <p>The key is set. Find our auction house once; after that the hourly collection stores how many are listed at each price.</p>
+          )}
+        </div>
+        {blizzardConfigured() ? <BlizzardDiscovery /> : null}
       </section>
       <section>
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted">Invite a guildie</h2>

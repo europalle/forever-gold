@@ -317,3 +317,42 @@ model TrainerService {
   @@id([npcId, name])
   @@index([itemId])
 }
+
+// Small site-wide settings, e.g. which Blizzard auction house is ours.
+model Setting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+}
+
+// One Blizzard auction house listing, keyed by its Last-Modified time.
+model DepthSnapshot {
+  id           Int      @id @default(autoincrement())
+  houseId      Int
+  lastModified DateTime
+  fetchedAt    DateTime @default(now())
+  itemCount    Int
+  auctionCount Int
+
+  items DepthItem[]
+
+  @@unique([houseId, lastModified])
+}
+
+// Per item in a listing: the cheapest unit price, how many are listed at it
+// and within 5% of it, all units listed, and the cheapest price steps.
+model DepthItem {
+  snapshotId  Int
+  itemId      Int
+  minUnit     Int
+  qtyAtMin    Int
+  qtyNearMin  Int
+  totalQty    Int
+  auctions    Int
+  ladder      Json // [[unit price, quantity], ...] cheapest first, up to 8 steps
+
+  snapshot DepthSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+
+  @@id([snapshotId, itemId])
+  @@index([itemId])
+}

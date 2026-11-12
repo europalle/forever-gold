@@ -16,6 +16,8 @@ export type MarketItem = {
   saleRate: number | null;
   soldPerDay: number | null;
   avgSalePrice: number | null; // EU-wide; only trusted when an item sells often
+  listedAtMin: number | null; // from Blizzard's listing, when collected
+  listedTotal: number | null;
 };
 
 type Snapshots = { market: number | null; region: number | null; older: number | null; olderAt: Date | null };
@@ -54,11 +56,14 @@ async function rows(s: Snapshots, where: string, order: string, limit: number, p
   }
   return db.$queryRawUnsafe<Raw[]>(
     `SELECT i.id, i.name, mp."minBuyout", mp."marketValue", mp.historical,
-            rs."saleRate", rs."soldPerDay", rs."avgSalePrice", op."marketValue" AS "olderValue"
+            rs."saleRate", rs."soldPerDay", rs."avgSalePrice", op."marketValue" AS "olderValue",
+            di."qtyAtMin" AS "listedAtMin", di."totalQty" AS "listedTotal"
        FROM "MarketPrice" mp
        JOIN "Item" i ON i.id = mp."itemId"
        LEFT JOIN "RegionStat" rs ON rs."itemId" = mp."itemId" AND rs."snapshotId" = $2
        LEFT JOIN "MarketPrice" op ON op."itemId" = mp."itemId" AND op."snapshotId" = $3
+       LEFT JOIN "DepthItem" di ON di."itemId" = mp."itemId"
+            AND di."snapshotId" = (SELECT id FROM "DepthSnapshot" ORDER BY "lastModified" DESC LIMIT 1)
       WHERE mp."snapshotId" = $1 AND i.name <> '' AND ${where}
       ORDER BY ${order}
       LIMIT ${Math.floor(limit)}`,
@@ -152,6 +157,7 @@ export async function capForUser(userId: string): Promise<{ cap: number; gold: n
 export type ItemDetail = {
   id: number;
   name: string;
+  depth: { at: Date; minUnit: number; qtyAtMin: number; qtyNearMin: number; totalQty: number; auctions: number; ladder: [number, number][] } | null;
   history: { at: Date; minBuyout: number | null; marketValue: number | null }[];
   region: { saleRate: number | null; soldPerDay: number | null; avgSalePrice: number | null; marketValue: number | null } | null;
   mine: { kind: string; quantity: number; unitPrice: number; time: Date; character: string }[];
@@ -161,7 +167,8 @@ export async function itemDetail(id: number, userId: string): Promise<ItemDetail
   const item = await db.item.findUnique({ where: { id }, select: { id: true, name: true } });
   if (!item) return null;
   const s = await snapshots();
-  const [hist, region, mine] = await Promise.all([
+  const lastDepth = await db.depthSnapshot.findFirst({ orderBy: { lastModified: "desc" }, select: { id: true, lastModified: true } });
+  const [hist, region, mine, depthRow] = await Promise.all([
     db.marketPrice.findMany({
       where: { itemId: id, snapshot: { kind: "MARKET", scope: marketScope(MARKET) } },
       select: { minBuyout: true, marketValue: true, snapshot: { select: { sourceUpdatedAt: true } } },
@@ -176,10 +183,23 @@ export async function itemDetail(id: number, userId: string): Promise<ItemDetail
       take: 30,
       select: { kind: true, quantity: true, unitPrice: true, time: true, character: true },
     }),
+    lastDepth ? db.depthItem.findUnique({ where: { snapshotId_itemId: { snapshotId: lastDepth.id, itemId: id } } }) : null,
   ]);
   return {
     id: item.id,
     name: item.name || `Item ${item.id}`,
+    depth:
+      depthRow && lastDepth
+        ? {
+            at: lastDepth.lastModified,
+            minUnit: depthRow.minUnit,
+            qtyAtMin: depthRow.qtyAtMin,
+            qtyNearMin: depthRow.qtyNearMin,
+            totalQty: depthRow.totalQty,
+            auctions: depthRow.auctions,
+            ladder: depthRow.ladder as [number, number][],
+          }
+        : null,
     history: hist.map((h) => ({ at: h.snapshot.sourceUpdatedAt, minBuyout: h.minBuyout, marketValue: h.marketValue })),
     region,
     mine,

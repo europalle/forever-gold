@@ -86,7 +86,7 @@ async function Deals({ userId, level }: { userId: string; level: LevelWindow }) 
         {gold !== null ? <> (10% of your {formatCopper(gold)})</> : <> (upload your TSM file to size this to your gold)</>}.
         The usual price is the lowest of TSM&apos;s market value, its long average and the EU average sale price.{" "}
         {trendSince ? "Items whose value fell over 10% in the last day are left out." : "With a day of history, items still sliding get left out; until then, check the item page before buying."}{" "}
-        TSM does not say how many are listed at that price: there may be only one. For gear, TSM prices the base item:
+        &quot;Listed at it&quot; comes from Blizzard&apos;s hourly listing, once collected; without it there may be only one. For gear, TSM prices the base item:
         an &quot;of the Monkey&quot; and an &quot;of the Owl&quot; version can sell for very different amounts, so compare the exact
         one before buying.
       </p>
@@ -97,12 +97,13 @@ async function Deals({ userId, level }: { userId: string; level: LevelWindow }) 
           const d = i as (typeof items)[number];
           return (
             <>
+              <Cell label="Listed at that price">{d.listedAtMin != null ? d.listedAtMin.toLocaleString("en-US") : "-"}</Cell>
               <Cell label="Usual">{formatCopper(d.target)}</Cell>
               <Cell label="Profit each" good>+{formatCopper(d.profitEach)}</Cell>
             </>
           );
         }}
-        extraHead={["Usual", "Profit each"]}
+        extraHead={["Listed at it", "Usual", "Profit each"]}
       />
       <p className="mt-2 text-xs text-muted">Profit is the usual price after the {formatPercent(SETTINGS.cut)} cut, minus what you pay.</p>
     </>
@@ -145,7 +146,7 @@ function ItemList({
 }) {
   if (!items.length) return <p className="mt-4 text-muted">{empty}</p>;
   // Written out in full so Tailwind generates them.
-  const cols = ["sm:grid-cols-[1fr_repeat(4,6.5rem)]", "sm:grid-cols-[1fr_repeat(5,6.5rem)]", "sm:grid-cols-[1fr_repeat(6,6.5rem)]"][extraHead.length];
+  const cols = ["sm:grid-cols-[1fr_repeat(4,6.5rem)]", "sm:grid-cols-[1fr_repeat(5,6.5rem)]", "sm:grid-cols-[1fr_repeat(6,6.5rem)]", "sm:grid-cols-[1fr_repeat(7,6.5rem)]"][extraHead.length];
   return (
     <ul className="mt-4 divide-y divide-line rounded border border-line text-sm">
       <li className={`hidden gap-3 bg-panel px-3 py-2 text-xs text-muted sm:grid ${cols}`}>

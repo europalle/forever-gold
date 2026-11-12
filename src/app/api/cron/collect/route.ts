@@ -5,7 +5,8 @@ import { db } from "@/lib/db";
 // Called by a scheduler with "Authorization: Bearer <CRON_SECRET>": cron-job.org
 // every hour (see docs/setup.md), GitHub Actions as a backup. Each scan is stored
 // once, so overlapping calls are harmless. A run takes about 2 seconds.
-export const maxDuration = 60;
+// TSM files take about 2 seconds; Blizzard's two listings (about 9 MB each) longer.
+export const maxDuration = 180;
 
 export async function GET(request: Request) {
   if (!process.env.CRON_SECRET) {

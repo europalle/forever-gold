@@ -1,5 +1,6 @@
 import { Prisma, type PrismaClient } from "@/generated/prisma/client";
 import { MARKET } from "@/config/player";
+import { collectBlizzard } from "./blizzard-collect";
 import {
   marketScope,
   marketUrl,
@@ -12,7 +13,7 @@ import {
 } from "./tsm";
 
 export type CollectResult = {
-  kind: "MARKET" | "REGION";
+  kind: "MARKET" | "REGION" | "BLIZZARD";
   scope: string;
   status: "stored" | "unchanged" | "error";
   scanTime?: string;
@@ -158,6 +159,8 @@ export async function collectAll(db: PrismaClient, fetcher: Fetcher = fetch): Pr
   const jobs: [CollectResult["kind"], string, () => Promise<CollectResult>][] = [
     ["MARKET", marketScope(MARKET), () => collectMarket(db, fetcher)],
     ["REGION", MARKET.region, () => collectRegion(db, fetcher)],
+    // Blizzard listing depth, once BNET_CLIENT_ID/SECRET are set and a house is chosen.
+    ["BLIZZARD", "eu", () => collectBlizzard(db)],
   ];
   const out: CollectResult[] = [];
   for (const [kind, scope, run] of jobs) {
