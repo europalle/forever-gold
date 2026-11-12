@@ -130,3 +130,14 @@ function GetTrainerServiceSkillReq(i) return TEST_TRAINER[i][4], TEST_TRAINER[i]
 function GetTrainerServiceLevelReq() return 10 end
 function GetTrainerServiceItemLink(i) return "|Hitem:" .. TEST_TRAINER[i][6] .. "::|h[x]|h" end
 PlayerName = setmetatable({ scripts = {}, events = {}, text = "Bubbi Hunter" }, getmetatable(UIParent))
+TEST_BROWSE = {}
+TEST_COMMODITY = {}
+TEST_REPLICATE = {}
+C_AuctionHouse = C_AuctionHouse or {}
+C_AuctionHouse.GetBrowseResults = function() return TEST_BROWSE end
+C_AuctionHouse.GetNumCommoditySearchResults = function(id) return #(TEST_COMMODITY[id] or {}) end
+C_AuctionHouse.GetCommoditySearchResultInfo = function(id, i) local r = (TEST_COMMODITY[id] or {})[i]; return r and { unitPrice = r[1], quantity = r[2] } end
+C_AuctionHouse.GetNumItemSearchResults = function(key) return 2 end
+C_AuctionHouse.GetItemSearchResultInfo = function(key, i) return ({ { buyoutAmount = 9000, quantity = 1 }, { buyoutAmount = 7000, quantity = 1 } })[i] end
+C_AuctionHouse.GetNumReplicateItems = function() return #TEST_REPLICATE end
+C_AuctionHouse.GetReplicateItemInfo = function(i) local r = TEST_REPLICATE[i + 1]; return "x", 0, r[2], 1, true, 1, nil, 0, 0, r[3], 0, false, nil, nil, nil, 0, r[1], true end

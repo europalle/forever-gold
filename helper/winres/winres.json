@@ -5,7 +5,7 @@
   "RT_MANIFEST": {
     "#1": {
       "0409": {
-        "identity": { "name": "ForeverGold", "version": "0.3.0.0" },
+        "identity": { "name": "ForeverGold", "version": "0.3.1.0" },
         "description": "Forever Gold",
         "minimum-os": "win10",
         "execution-level": "as invoker",
@@ -27,16 +27,16 @@
   "RT_VERSION": {
     "#1": {
       "0000": {
-        "fixed": { "file_version": "0.3.0.0", "product_version": "0.3.0.0" },
+        "fixed": { "file_version": "0.3.1.0", "product_version": "0.3.1.0" },
         "info": {
           "0409": {
             "CompanyName": "Forever Gold",
             "FileDescription": "Forever Gold",
-            "FileVersion": "0.3.0",
+            "FileVersion": "0.3.1",
             "InternalName": "ForeverGold",
             "OriginalFilename": "ForeverGold.exe",
             "ProductName": "Forever Gold",
-            "ProductVersion": "0.3.0"
+            "ProductVersion": "0.3.1"
           }
         }
       }

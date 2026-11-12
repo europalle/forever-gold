@@ -125,3 +125,26 @@ check(tr and #tr.services == 2 and tr.services[2].s == 150 and tr.services[2].c 
 check(ForeverGoldDB.items[4232].n == "Item4232", "item lookups keep the name")
 print("collector: " .. #ForeverGoldDB.loot .. " loot events, vendor and trainer recorded")
 TEST_SAVED = "\nForeverGoldDB = " .. ser(ForeverGoldDB) .. "\n"
+
+-- Live prices: browse, commodity search, item search and a full scan update
+-- prices without a reload.
+TEST_ADVANCE(100000) -- now well after the advice's scan time
+ForeverGoldDB.settings.tooltip = true -- an earlier check switched it off
+TEST_BROWSE = { { itemKey = { itemID = 4232 }, minPrice = 150, totalQuantity = 40 } }
+FireEvent("AUCTION_HOUSE_BROWSE_RESULTS_UPDATED")
+local price, live = FG_NS.priceNow(4232)
+check(live and price == 150, "browse result gives a live price")
+if ForeverGoldData then
+  local lines = TEST_TOOLTIP(4232)
+  check(has(lines, "Cheapest now %(live%)") and has(lines, "<150c>"), "tooltip shows the live price")
+end
+TEST_COMMODITY[4232] = { { 140, 5 }, { 141, 10 }, { 400, 50 } }
+FireEvent("COMMODITY_SEARCH_RESULTS_UPDATED", 4232)
+price = FG_NS.priceNow(4232)
+check(price == 140 and FG_NS.live[4232].q == 15, "commodity search gives the exact cheapest price and nearby quantity")
+FireEvent("ITEM_SEARCH_RESULTS_UPDATED", { itemID = 6602 })
+check(FG_NS.priceNow(6602) == 7000, "item search keeps the cheapest buyout")
+TEST_REPLICATE = { { 2318, 20, 1000 }, { 2318, 5, 400 }, { 4304, 1, 520 } }
+FireEvent("REPLICATE_ITEM_LIST_UPDATE")
+check(FG_NS.priceNow(2318) == 50 and FG_NS.priceNow(4304) == 520, "full scan gives per-unit cheapest prices")
+print("live prices: browse, search, item search and full scan all update without a reload")

@@ -36,6 +36,13 @@ const swRestore = 9
 func runApp(app *App, url string, showNow bool) {
 	app.showFn = func() { showWindow(app, url) }
 	app.quitFn = func() { systray.Quit() }
+	app.noticeFn = func(hint string) {
+		if hint == "" {
+			systray.SetTooltip("Forever Gold: keeping your addon in sync")
+		} else {
+			systray.SetTooltip("Forever Gold: " + hint)
+		}
+	}
 	systray.Run(func() {
 		systray.SetIcon(trayIcon)
 		systray.SetTitle("Forever Gold")

@@ -192,6 +192,7 @@ type uiState struct {
 	Recent           map[string]Activity `json:"recent"`
 	Log              []Activity          `json:"log"`
 	Startup          bool                `json:"startup"`
+	ReloadHint       string              `json:"reloadHint"`
 	StartupSupported bool                `json:"startupSupported"`
 }
 
@@ -207,6 +208,7 @@ func (a *App) state() uiState {
 		WowDir:           a.cfg.WowDir,
 		Recent:           map[string]Activity{},
 		StartupSupported: startupSupported(),
+		ReloadHint:       a.reloadHint(),
 	}
 	if a.cfg.WowDir != "" {
 		s.AddonVersion = addonVersion(a.cfg.WowDir)

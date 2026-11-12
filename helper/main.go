@@ -28,7 +28,7 @@ import (
 	"time"
 )
 
-const version = "0.3.0"
+const version = "0.3.1"
 
 const defaultServer = "https://forevergold.paro.fyi"
 
@@ -66,6 +66,30 @@ type App struct {
 	logWriter io.Writer
 	showFn    func() // open or raise the window
 	quitFn    func() // quit the whole app
+	noticeFn  func(text string)
+
+	// When new advice was written, and when the game last saved the addon's
+	// file (a logout or /reload, which also loads the advice). Advice newer than
+	// the last save is waiting for a /reload.
+	adviceAt time.Time
+	loadedAt time.Time
+}
+
+// The reload hint, or "" when the game already has the latest advice.
+func (a *App) reloadHint() string {
+	if a.adviceAt.IsZero() || !a.adviceAt.After(a.loadedAt) {
+		return ""
+	}
+	return "New advice since " + a.adviceAt.Format("15:04") + ": /reload in game to load it."
+}
+
+func (a *App) notice() {
+	a.mu.Lock()
+	hint, fn := a.reloadHint(), a.noticeFn
+	a.mu.Unlock()
+	if fn != nil {
+		fn(hint)
+	}
 }
 
 var (
@@ -302,7 +326,11 @@ func (a *App) uploadIfChanged(cfg Config, path, kind string) {
 	a.mu.Lock()
 	a.st.Uploaded[path] = h
 	a.uploads[kind] = Activity{At: time.Now(), Text: summary(kind, body)}
+	if kind == "addon" {
+		a.loadedAt = fi.ModTime() // the game saved, so it also loaded the advice
+	}
 	a.mu.Unlock()
+	a.notice()
 }
 
 func (a *App) fetchAdviceFile(cfg Config, addonDir string) error {
@@ -340,8 +368,10 @@ func (a *App) fetchAdviceFile(cfg Config, addonDir string) error {
 	a.mu.Lock()
 	a.st.AdviceETag = hdr.Get("ETag")
 	a.uploads["advice"] = Activity{At: time.Now(), Text: fmt.Sprintf("%d KB", len(body)/1024)}
+	a.adviceAt = time.Now()
 	a.mu.Unlock()
 	a.note(false, "New advice written (%d KB). It shows in game after /reload or your next login.", len(body)/1024)
+	a.notice()
 	return nil
 }
 

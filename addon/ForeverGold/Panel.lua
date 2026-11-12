@@ -49,7 +49,17 @@ local function buildRows()
     for _, id in ipairs(l.sell or {}) do
       local c = calls[id] or {}
       local n = haveCount(id)
-      local row = { id = id, title = itemName(id) .. (n > 0 and (FG.MUTED .. " x" .. n .. FG.R) or ""), sub = c.t or "", right = FG.money(c.pr), rightSub = c.g and ("nets " .. FG.money(n > 0 and c.g * n or c.g)) or "" }
+      -- A live price from your own auction house browsing beats the advice's.
+      local now, live = FG.priceNow(id)
+      local price = live and now or c.pr
+      local net = live and now and now * (1 - (d.cut or 0.05)) or c.g
+      local row = {
+        id = id,
+        title = itemName(id) .. (n > 0 and (FG.MUTED .. " x" .. n .. FG.R) or ""),
+        sub = live and ("Live price. " .. (c.t or "")) or (c.t or ""),
+        right = FG.money(price),
+        rightSub = net and ("nets " .. FG.money(n > 0 and net * n or net)) or "",
+      }
       table.insert(n > 0 and mine or rest, row)
     end
     for _, r in ipairs(mine) do table.insert(out, r) end
@@ -74,7 +84,10 @@ end
 
 local panel
 
-local function refresh()
+local refresh
+function FG.refreshPanel() if refresh then refresh() end end
+
+function refresh()
   if not panel or not panel:IsShown() then return end
   local d = FG.data()
   panel.sub:SetText(d and string.format("Advice from %s ago · %s", FG.ago(d.generatedAt), d.user or "") or "No advice yet: start the helper, then /reload.")

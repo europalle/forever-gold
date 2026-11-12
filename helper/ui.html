@@ -42,6 +42,7 @@
   .msg { margin-top: 8px; font-size: 13px; min-height: 1em; }
   a { color: var(--gold); }
   .wide { grid-column: 1 / -1; }
+  .hint { margin-top: 16px; padding: 10px 14px; border: 1px solid var(--gold); border-radius: 6px; color: var(--gold); background: rgba(216,178,90,.08); }
 </style>
 </head>
 <body>
@@ -50,6 +51,8 @@
     <h1>Forever Gold <small id="version"></small></h1>
     <span id="status" class="pill warn"><i></i><span>Starting…</span></span>
   </header>
+
+  <div id="hint" class="hint" style="display:none"></div>
 
   <div class="grid">
     <section>
@@ -178,6 +181,9 @@
       li.append(t, span);
       return li;
     }));
+    const hint = $("hint");
+    hint.textContent = s.reloadHint || "";
+    hint.style.display = s.reloadHint ? "" : "none";
     $("startupWrap").style.display = s.startupSupported ? "" : "none";
     $("startup").checked = !!s.startup;
     if (!s.user) setStatus("warn", "Needs a pairing code");

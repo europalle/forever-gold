@@ -2,7 +2,7 @@
 local ADDON, FG = ...
 _G.ForeverGold = FG
 
-FG.version = "0.2.1"
+FG.version = "0.3.0"
 FG.GOLD = "|cffffd100"
 FG.MUTED = "|cff9d9d9d"
 FG.GOOD = "|cff40ff40"
