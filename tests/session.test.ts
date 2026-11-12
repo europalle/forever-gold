@@ -51,4 +51,14 @@ describe("database URL", () => {
     expect(directDatabaseUrl(env)).toBe("postgres://u:p@direct/db");
     expect(runtimeDatabaseUrl({})).toBeUndefined();
   });
+
+  it("finds variables behind a custom prefix from the Vercel connect dialog", () => {
+    const env = {
+      STORAGE_DATABASE_URL: "postgres://u:p@prefixed/db",
+      STORAGE_PRISMA_DATABASE_URL: "prisma+postgres://accelerate/?api_key=x",
+      STORAGE_POSTGRES_URL_NON_POOLING: "postgres://u:p@direct/db",
+    };
+    expect(runtimeDatabaseUrl(env)).toBe("postgres://u:p@prefixed/db");
+    expect(directDatabaseUrl(env)).toBe("postgres://u:p@direct/db");
+  });
 });
