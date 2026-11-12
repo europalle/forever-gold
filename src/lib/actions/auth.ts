@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { db } from "../db";
@@ -66,4 +67,16 @@ export async function changePassword(_prev: FormState, form: FormData): Promise<
   });
   await startSession(updated.id, updated.sessionVersion);
   return { ok: "Password changed. Other devices are signed out." };
+}
+
+export async function changeUsername(_prev: FormState, form: FormData): Promise<FormState> {
+  const me = await requireUser();
+  const raw = String(form.get("username") ?? "");
+  const username = normalizeUsername(raw);
+  if (!username) return { error: "Usernames are 2 to 24 letters, digits, _ or -." };
+  const taken = await db.user.findUnique({ where: { username }, select: { id: true } });
+  if (taken && taken.id !== me.id) return { error: `${raw.trim()} is taken.` };
+  await db.user.update({ where: { id: me.id }, data: { username, displayName: raw.trim() } });
+  revalidatePath("/", "layout");
+  return { ok: `You are now ${raw.trim()}. Sign in with that name from now on; your password stays the same.` };
 }
