@@ -2,7 +2,7 @@
 local ADDON, FG = ...
 _G.ForeverGold = FG
 
-FG.version = "0.1.0"
+FG.version = "0.1.1"
 FG.GOLD = "|cffffd100"
 FG.MUTED = "|cff9d9d9d"
 FG.GOOD = "|cff40ff40"
@@ -60,7 +60,7 @@ function FG.print(msg)
   DEFAULT_CHAT_FRAME:AddMessage(FG.GOLD .. "[Forever Gold]" .. FG.R .. " " .. msg)
 end
 
-local defaults = { tooltip = true, chat = true }
+local defaults = { tooltip = true, chat = true, minimap = true, minimapAngle = 200 }
 
 local frame = CreateFrame("Frame")
 FG.events = frame
@@ -120,12 +120,16 @@ SlashCmdList.FOREVERGOLD = function(msg)
   elseif msg == "chat" and s then
     s.chat = not s.chat
     FG.print("Login messages " .. (s.chat and "on." or "off."))
+  elseif msg == "status" then
+    FG.status()
+  elseif msg == "options" or msg == "settings" then
+    if FG.openSettings then FG.openSettings() end
   elseif msg == "debug" then
     FG.debug = not FG.debug
     FG.print("Debug " .. (FG.debug and "on." or "off."))
   elseif msg == "" or msg == "panel" then
     if FG.togglePanel then FG.togglePanel() end
   else
-    FG.print("/fg: panel. /fg tooltip, /fg chat: switch those on or off.")
+    FG.print("/fg: panel. /fg options: settings. /fg status: what the addon sees. /fg tooltip, /fg chat: switch those on or off.")
   end
 end

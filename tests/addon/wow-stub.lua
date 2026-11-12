@@ -91,3 +91,13 @@ function GameTooltip:AddDoubleLine(a, b) table.insert(self.lines, a .. " = " .. 
 function TEST_TOOLTIP(id) GameTooltip.lines = {}; tooltipHook(GameTooltip, { id = id }); return GameTooltip.lines end
 AuctionHouseFrame = setmetatable({ scripts = {}, events = {}, shown = true, SearchBar = { SearchBox = setmetatable({ scripts = {}, events = {} }, Frame) } }, Frame)
 function AuctionHouseFrame.SearchBar:StartSearch() TEST_SEARCHED = AuctionHouseFrame.SearchBar.SearchBox.text end
+Minimap = CreateFrame("Frame", "Minimap")
+function Minimap:GetWidth() return 140 end
+function Minimap:GetCenter() return 100, 100 end
+function Minimap:GetEffectiveScale() return 1 end
+function GetCursorPosition() return 150, 100 end
+Settings = {
+  RegisterCanvasLayoutCategory = function(frame, name) TEST_SETTINGS = { frame = frame, name = name }; return { GetID = function() return 42 end } end,
+  RegisterAddOnCategory = function(cat) TEST_SETTINGS_REGISTERED = true end,
+  OpenToCategory = function(id) TEST_SETTINGS_OPENED = id end,
+}

@@ -11,6 +11,6 @@ What it does:
 
 It never posts, buys, cancels, sends mail, crafts or moves items.
 
-Commands: `/fg` (panel), `/fg tooltip`, `/fg chat` (switch those on or off), `/fg debug`.
+In game: a minimap button (left click: panel, right click: settings, drag to move) and a settings page under Esc, Options, AddOns, Forever Gold. Commands: `/fg` (panel), `/fg options`, `/fg status` (what the addon sees: advice age, prices, recorded bags and professions), `/fg tooltip`, `/fg chat`, `/fg debug`.
 
 Tests: `npm run test:addon` loads the addon in a Lua engine with a stand-in for the game's API (`tests/addon/wow-stub.lua`). Pass the path of a real advice file to test with it. The stand-in is not the game: the first real run is in WoW.

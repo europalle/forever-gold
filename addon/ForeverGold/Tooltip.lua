@@ -22,8 +22,13 @@ end
 
 local function addLines(tooltip, id)
   if not (FG.db and FG.db.settings.tooltip) then return end
+  if type(id) ~= "number" then return end
   local d = FG.data()
-  if not d or type(id) ~= "number" then return end
+  if not d then
+    tooltip:AddLine("Forever Gold: no advice yet. Run the helper, then /reload.", 0.62, 0.62, 0.62, true)
+    tooltip:Show()
+    return
+  end
   local p = d.p and d.p[id]
   local call = d.calls and d.calls[id]
   local here, others = owned(id)
@@ -57,7 +62,9 @@ end
 if TooltipDataProcessor and Enum and Enum.TooltipDataType and TooltipDataProcessor.AddTooltipPostCall then
   TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Item, function(tooltip, data)
     if not data or not FG.usable(data.id) then return end
-    if tooltip ~= GameTooltip and tooltip ~= ItemRefTooltip then return end
+    -- Any item tooltip (bag addons use their own), but not the comparison ones.
+    local name = tooltip.GetName and tooltip:GetName() or ""
+    if name:find("^ShoppingTooltip") or not tooltip.AddDoubleLine then return end
     FG.try(addLines, tooltip, data.id)
   end)
 elseif GameTooltip and GameTooltip.HookScript then

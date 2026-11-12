@@ -43,8 +43,17 @@ if withData then
   check(not ForeverGoldPanel.shown, "panel closes with the auction house")
 else
   local lines = TEST_TOOLTIP(4232)
-  check(#lines == 0, "no tooltip lines without data")
+  check(has(lines, "no advice yet"), "waiting line without data")
 end
+
+check(ForeverGoldMinimapButton and TEST_SETTINGS and TEST_SETTINGS.name == "Forever Gold" and TEST_SETTINGS_REGISTERED, "minimap button and settings page exist")
+ForeverGoldMinimapButton.scripts.OnClick(ForeverGoldMinimapButton, "RightButton")
+check(TEST_SETTINGS_OPENED == 42, "right click opens settings")
+local before = #TEST_LOG
+SlashCmdList.FOREVERGOLD("status")
+print("/fg status:"); for i = before + 1, #TEST_LOG do print("  " .. TEST_LOG[i]) end
+check(#TEST_LOG > before + 2, "/fg status prints")
+TEST_SETTINGS.frame.scripts.OnShow(TEST_SETTINGS.frame)
 SlashCmdList.FOREVERGOLD("tooltip")
 check(ForeverGoldDB.settings.tooltip == false, "/fg tooltip toggles")
 
