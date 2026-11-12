@@ -4,6 +4,8 @@ import { MARKET } from "@/config/player";
 import { SETTINGS } from "@/config/settings";
 import type { Call } from "@/lib/advice";
 import { formatCopper, formatPercent } from "@/lib/money";
+import { logout } from "@/lib/actions/auth";
+import { requireSession } from "@/lib/auth";
 import { board, type Row } from "@/lib/queries";
 
 export default function Home() {
@@ -11,8 +13,15 @@ export default function Home() {
     <main className="mx-auto max-w-6xl px-4 py-8">
       <header className="flex flex-wrap items-baseline justify-between gap-2 border-b border-line pb-4">
         <h1 className="text-2xl font-semibold text-gold">Forever Gold</h1>
-        <p className="text-sm text-muted">
+        <p className="flex items-baseline gap-3 text-sm text-muted">
+          <span>
           {MARKET.region.toUpperCase()} · {cap(MARKET.ruleset === "pvp" ? "PvP" : MARKET.ruleset)} · {cap(MARKET.faction)}
+          </span>
+          <form action={logout}>
+            <button type="submit" className="underline-offset-2 hover:text-text hover:underline">
+              Sign out
+            </button>
+          </form>
         </p>
       </header>
       <Suspense fallback={<p className="mt-8 text-muted">Loading prices…</p>}>
@@ -24,6 +33,7 @@ export default function Home() {
 
 async function Board() {
   await connection();
+  await requireSession();
   const b = await board();
 
   if (!b.marketScanAt) {

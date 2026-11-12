@@ -1,12 +1,13 @@
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@/generated/prisma/client";
+import { runtimeDatabaseUrl } from "./database-url";
 
 // One client per process; in dev, survive hot reloads.
 const globalForDb = globalThis as unknown as { db?: PrismaClient };
 
 function create() {
-  const connectionString = process.env.DATABASE_URL;
-  if (!connectionString) throw new Error("DATABASE_URL is not set");
+  const connectionString = runtimeDatabaseUrl();
+  if (!connectionString) throw new Error("No postgres:// URL in DATABASE_URL or POSTGRES_URL");
   return new PrismaClient({ adapter: new PrismaPg({ connectionString }) });
 }
 
