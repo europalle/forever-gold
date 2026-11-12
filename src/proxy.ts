@@ -2,7 +2,8 @@ import { NextResponse, type NextRequest } from "next/server";
 import { SESSION_COOKIE, verifyToken } from "./lib/session";
 
 // Send anyone without a validly signed session to /login, and tell search
-// engines to keep out everywhere. requireUser() does the full check (account
+// engines to keep out everywhere. /api/sync is for the helper program, which
+// authenticates with its own pairing code (src/lib/device.ts). requireUser() does the full check (account
 // still exists, session not revoked). The cron endpoint has its own bearer
 // check; /login, /invite/<token> and robots.txt must stay reachable.
 export async function proxy(request: NextRequest) {
@@ -19,5 +20,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!login|invite/|robots.txt|api/cron|_next/static|_next/image|favicon.ico|icon).*)"],
+  matcher: ["/((?!login|invite/|robots.txt|api/cron|api/sync|_next/static|_next/image|favicon.ico|icon).*)"],
 };

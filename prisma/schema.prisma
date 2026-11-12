@@ -99,6 +99,7 @@ model User {
   gold       GoldSample[]
   uploads    Upload[]
 
+  devices        Device[]
   invitesCreated Invite[] @relation("InvitesCreated")
   inviteUsed     Invite[] @relation("InviteUsed")
 }
@@ -199,4 +200,34 @@ model Invite {
   usedBy    User? @relation("InviteUsed", fields: [usedById], references: [id], onDelete: SetNull)
 
   @@index([expiresAt])
+}
+
+// A paired helper program. It sends a bearer token; only its SHA-256 is stored.
+model Device {
+  id         String    @id @default(cuid())
+  userId     String
+  name       String
+  tokenHash  String    @unique
+  createdAt  DateTime  @default(now())
+  lastSeenAt DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// Item details from the game, sent by members' addons (GetItemInfo). Shared by
+// everyone: they are game data, not personal. TSM's price files have none of this.
+model ItemInfo {
+  id         Int      @id
+  quality    Int? // 0 poor, 1 common, 2 uncommon, 3 rare, 4 epic
+  itemLevel  Int?
+  reqLevel   Int?
+  classId    Int? // Enum.ItemClass: 2 weapon, 4 armor, 7 trade goods, 9 recipe, ...
+  subclassId Int?
+  equipLoc   String?
+  vendorSell Int? // copper
+  maxStack   Int?
+  bindType   Int? // 0 none, 1 on pickup, 2 on equip, 3 on use, 4 quest
+  updatedAt  DateTime @updatedAt
 }

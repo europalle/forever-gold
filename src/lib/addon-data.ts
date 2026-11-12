@@ -1,0 +1,91 @@
+// The addon's data file, ForeverGold_Data.lua: prices for every item on the
+// market (so any tooltip works), this user's calls and lists, and the item IDs
+// whose details the site still lacks (the addon looks them up in game).
+
+import { MARKET } from "@/config/player";
+import { SETTINGS } from "@/config/settings";
+import { db } from "./db";
+import { luaAssign, type LuaOut } from "./lua-write";
+import { board } from "./queries/board";
+import { capForUser, deals } from "./queries/market";
+import { marketScope } from "./tsm";
+
+export const ADDON_DATA_VERSION = 1;
+const WANT_LIMIT = 3000; // item lookups asked for per file, so a session is not flooded
+
+const callCode = { sell: "S", hold: "H", convert: "C", "no-data": "N" } as const;
+
+export async function buildAddonData(userId: string, displayName: string, now = new Date()) {
+  const scope = marketScope(MARKET);
+  const [latest, region] = await Promise.all([
+    db.snapshot.findFirst({ where: { kind: "MARKET", scope }, orderBy: { sourceUpdatedAt: "desc" } }),
+    db.snapshot.findFirst({ where: { kind: "REGION", scope: MARKET.region }, orderBy: { sourceUpdatedAt: "desc" } }),
+  ]);
+  const [prices, stats, b, cap] = await Promise.all([
+    latest ? db.marketPrice.findMany({ where: { snapshotId: latest.id }, select: { itemId: true, minBuyout: true, marketValue: true } }) : [],
+    region ? db.regionStat.findMany({ where: { snapshotId: region.id }, select: { itemId: true, saleRate: true, soldPerDay: true } }) : [],
+    board(userId),
+    capForUser(userId),
+  ]);
+  const buy = await deals(cap.cap, 15);
+
+  // p[id] = { m = cheapest, v = market value, r = sale rate %, d = sold a day }
+  const statOf = new Map(stats.map((s) => [s.itemId, s]));
+  const p: Record<string, LuaOut> = {};
+  for (const x of prices) {
+    const s = statOf.get(x.itemId);
+    p[x.itemId] = {
+      m: x.minBuyout ?? undefined,
+      v: x.marketValue ?? undefined,
+      r: s?.saleRate != null ? Math.round(s.saleRate * 100) : undefined,
+      d: s?.soldPerDay != null ? Math.round(s.soldPerDay) : undefined,
+    };
+  }
+
+  // calls[id] = { k = S|H|C|N, g = net or gain each, t = short reason, o = output item for C }
+  const calls: Record<string, LuaOut> = {};
+  const lists = { sell: [] as LuaOut[], make: [] as LuaOut[], hold: [] as LuaOut[], buy: [] as LuaOut[] };
+  for (const g of b.groups) {
+    for (const row of g.rows) {
+      const c = row.call;
+      const entry: Record<string, LuaOut> = { k: callCode[c.kind], t: c.reason };
+      if (c.kind === "sell") {
+        entry.g = Math.round(c.net);
+        entry.pr = c.price;
+        lists.sell.push(row.item.id);
+      } else if (c.kind === "convert") {
+        entry.g = Math.round(c.gainPerUnit);
+        entry.o = c.outputId;
+        entry.vb = c.verb;
+        lists.make.push({ id: row.item.id, o: c.outputId, g: Math.round(c.gainPerUnit), vb: c.verb });
+      } else if (c.kind === "hold") {
+        lists.hold.push(row.item.id);
+      }
+      calls[row.item.id] = entry;
+    }
+  }
+  for (const d of buy.items) {
+    lists.buy.push({ id: d.id, pr: d.minBuyout, u: d.target, g: d.profitEach });
+    calls[d.id] ??= { k: "B", g: d.profitEach, t: `Listed ${Math.round(d.discount * 100)}% under its usual price and sells well.` };
+  }
+
+  // Items on the market whose details the site does not know yet.
+  const known = new Set((await db.itemInfo.findMany({ select: { id: true } })).map((i) => i.id));
+  const want = prices.map((x) => x.itemId).filter((id) => !known.has(id)).slice(0, WANT_LIMIT);
+
+  const data: LuaOut = {
+    version: ADDON_DATA_VERSION,
+    generatedAt: Math.floor(now.getTime() / 1000),
+    scanAt: latest ? Math.floor(latest.sourceUpdatedAt.getTime() / 1000) : 0,
+    user: displayName,
+    market: `${MARKET.region.toUpperCase()} PvP ${MARKET.faction[0].toUpperCase()}${MARKET.faction.slice(1)}`,
+    cut: SETTINGS.cut,
+    deposit: SETTINGS.depositPerListing,
+    buyCap: cap.cap,
+    p,
+    calls,
+    lists,
+    want,
+  };
+  return "-- Written by Forever Gold. Do not edit: the helper replaces this file.\n" + luaAssign("ForeverGoldData", data);
+}
