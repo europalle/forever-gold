@@ -2,7 +2,7 @@
 local ADDON, FG = ...
 _G.ForeverGold = FG
 
-FG.version = "0.3.1"
+FG.version = "0.3.2"
 FG.GOLD = "|cffffd100"
 FG.MUTED = "|cff9d9d9d"
 FG.GOOD = "|cff40ff40"
@@ -58,6 +58,29 @@ function FG.bagItem(bag, slot)
   end
   if not quality and GetItemInfo then quality = select(3, FG.try(GetItemInfo, id)) end
   return id, count, quality
+end
+
+-- How many of an item you have: on this character, and on your other
+-- characters (bags, bank and mail, as last seen by the addon).
+function FG.owned(id)
+  local here, others = 0, 0
+  local me = FG.playerName()
+  for name, c in pairs(FG.db and FG.db.chars or {}) do
+    local n = ((c.bags or {})[id] or 0) + ((c.bank or {})[id] or 0) + ((c.mail or {})[id] or 0)
+    if name == me then here = here + n else others = others + n end
+  end
+  return here, others
+end
+
+-- The ids in a list that you have somewhere.
+function FG.ownedOnly(list)
+  local out = {}
+  for _, e in ipairs(list or {}) do
+    local id = type(e) == "table" and e.id or e
+    local here, others = FG.owned(id)
+    if here + others > 0 then table.insert(out, e) end
+  end
+  return out
 end
 
 function FG.money(copper)
@@ -159,8 +182,8 @@ FG.on("PLAYER_LOGIN", function()
   FG.print(string.format("Advice for %s from %s ago (prices %s old).", d.user or "you", FG.ago(d.generatedAt), FG.ago(d.scanAt)))
   local l = d.lists or {}
   local n = function(t) return t and #t or 0 end
-  FG.print(string.format("%d to post, %d to make, %d to buy, %d to hold. Open the auction house to see them.",
-    n(l.sell), n(l.make), n(l.buy), n(l.hold)))
+  FG.print(string.format("You have %d to post, %d to make into something better and %d to hold; %d deals to buy. Open the auction house to see them.",
+    n(FG.ownedOnly(l.sell)), n(FG.ownedOnly(l.make)), n(FG.ownedOnly(l.hold)), n(l.buy)))
   if (d.deposit or 0) >= 100 then
     FG.print(FG.WARN .. "Deposits are " .. FG.money(d.deposit) .. " per listing: post in full stacks." .. FG.R)
   end

@@ -21,9 +21,16 @@ local function itemIcon(id)
 end
 
 local function haveCount(id)
-  local c = FG.db and FG.db.chars[FG.playerName() or ""]
-  if not c then return 0 end
-  return ((c.bags or {})[id] or 0) + ((c.bank or {})[id] or 0)
+  local here = FG.owned(id)
+  return here
+end
+
+-- " x12" on this character, " x12 on alts" when only alts have it.
+local function haveText(id)
+  local here, others = FG.owned(id)
+  if here > 0 then return FG.MUTED .. " x" .. here .. FG.R end
+  if others > 0 then return FG.MUTED .. " x" .. others .. " on alts" .. FG.R end
+  return ""
 end
 
 function FG.search(name)
@@ -45,8 +52,10 @@ local function buildRows()
   local l = d.lists or {}
   local calls = d.calls or {}
   if state.tab == "sell" then
+    -- Only what you have: the site calls many items a sell, but you can only
+    -- post what is in your bags, bank or mail (this character first).
     local mine, rest = {}, {}
-    for _, id in ipairs(l.sell or {}) do
+    for _, id in ipairs(FG.ownedOnly(l.sell)) do
       local c = calls[id] or {}
       local n = haveCount(id)
       -- A live price from your own auction house browsing beats the advice's.
@@ -55,7 +64,7 @@ local function buildRows()
       local net = live and now and now * (1 - (d.cut or 0.05)) or c.g
       local row = {
         id = id,
-        title = itemName(id) .. (n > 0 and (FG.MUTED .. " x" .. n .. FG.R) or ""),
+        title = itemName(id) .. haveText(id),
         sub = live and ("Live price. " .. (c.t or "")) or (c.t or ""),
         right = FG.money(price),
         rightSub = net and ("nets " .. FG.money(n > 0 and net * n or net)) or "",
@@ -65,18 +74,18 @@ local function buildRows()
     for _, r in ipairs(mine) do table.insert(out, r) end
     for _, r in ipairs(rest) do table.insert(out, r) end
   elseif state.tab == "make" then
-    for _, m in ipairs(l.make or {}) do
+    for _, m in ipairs(FG.ownedOnly(l.make)) do
       local n = haveCount(m.id)
-      table.insert(out, { id = m.id, title = (m.vb or "Make") .. " " .. itemName(m.id) .. (n > 0 and (FG.MUTED .. " x" .. n .. FG.R) or ""), sub = "Makes " .. itemName(m.o), right = FG.GOOD .. "+" .. FG.R .. FG.money(m.g), rightSub = n > 0 and ("+" .. FG.money(m.g * n) .. " total") or "each" })
+      table.insert(out, { id = m.id, title = (m.vb or "Make") .. " " .. itemName(m.id) .. haveText(m.id), sub = "Makes " .. itemName(m.o), right = FG.GOOD .. "+" .. FG.R .. FG.money(m.g), rightSub = n > 0 and ("+" .. FG.money(m.g * n) .. " total") or "each" })
     end
   elseif state.tab == "buy" then
     for _, b in ipairs(l.buy or {}) do
       table.insert(out, { id = b.id, title = itemName(b.id), sub = "Usual " .. FG.money(b.u) .. ". Check the exact item first.", right = FG.money(b.pr), rightSub = "+" .. FG.money(b.g) .. " each" })
     end
   else
-    for _, id in ipairs(l.hold or {}) do
+    for _, id in ipairs(FG.ownedOnly(l.hold)) do
       local c = calls[id] or {}
-      table.insert(out, { id = id, title = itemName(id), sub = c.t or "", right = "", rightSub = "" })
+      table.insert(out, { id = id, title = itemName(id) .. haveText(id), sub = c.t or "", right = "", rightSub = "" })
     end
   end
   return out
@@ -98,7 +107,8 @@ function refresh()
   local l = d and d.lists or {}
   for _, key in ipairs(TABS) do
     local b = panel.tabs[key]
-    b:SetText(TAB_LABEL[key] .. " " .. #(l[key] or {}))
+    local list = key == "buy" and (l.buy or {}) or FG.ownedOnly(l[key])
+    b:SetText(TAB_LABEL[key] .. " " .. #list)
     if key == state.tab then b:LockHighlight() else b:UnlockHighlight() end
   end
   for i = 1, ROWS do
@@ -116,6 +126,7 @@ function refresh()
       row:Hide()
     end
   end
+  panel.empty:SetText(state.tab == "buy" and "No deals right now." or "Nothing of yours here. Your bags, bank and mail count.")
   panel.empty:SetShown(#rows == 0)
   panel.more:SetText(#rows > ROWS and string.format("%d-%d of %d · scroll for more", state.offset + 1, math.min(#rows, state.offset + ROWS), #rows) or "")
 end
@@ -206,6 +217,7 @@ local function create()
   panel.empty = panel:CreateFontString(nil, "OVERLAY", "GameFontDisable")
   panel.empty:SetPoint("TOP", 0, -110)
   panel.empty:SetText("Nothing here right now.")
+  panel.empty:SetWidth(300)
   panel.more = panel:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
   panel.more:SetPoint("BOTTOMLEFT", 20, 30)
   local note = panel:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")

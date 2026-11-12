@@ -10,15 +10,7 @@ local CALLS = {
   N = { "No price yet", FG.MUTED },
 }
 
-local function owned(id)
-  local here, others = 0, 0
-  local me = FG.playerName()
-  for name, c in pairs(FG.db and FG.db.chars or {}) do
-    local n = ((c.bags or {})[id] or 0) + ((c.bank or {})[id] or 0) + ((c.mail or {})[id] or 0)
-    if name == me then here = here + n else others = others + n end
-  end
-  return here, others
-end
+local owned = FG.owned
 
 local function addLines(tooltip, id)
   if not (FG.db and FG.db.settings.tooltip) then return end

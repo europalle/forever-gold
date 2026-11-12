@@ -165,3 +165,10 @@ TEST_REPLICATE = { { 2318, 20, 1000 }, { 2318, 5, 400 }, { 4304, 1, 520 } }
 FireEvent("REPLICATE_ITEM_LIST_UPDATE")
 check(FG_NS.priceNow(2318) == 50 and FG_NS.priceNow(4304) == 520, "full scan gives per-unit cheapest prices")
 print("live prices: browse, search, item search and full scan all update without a reload")
+
+-- Lists only count what you have (bags, bank, mail on any character).
+do
+  local only = FG_NS.ownedOnly({ 4232, 123456, { id = 4304 } })
+  check(#only == 2 and only[1] == 4232 and only[2].id == 4304, "sell, make and hold lists keep only items you have")
+  print("owned filter: lists keep only items you have")
+end
