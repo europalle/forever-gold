@@ -21,7 +21,7 @@ local function itemIcon(id)
 end
 
 local function haveCount(id)
-  local c = FG.db and FG.db.chars[UnitName("player")]
+  local c = FG.db and FG.db.chars[FG.playerName() or ""]
   if not c then return 0 end
   return ((c.bags or {})[id] or 0) + ((c.bank or {})[id] or 0)
 end

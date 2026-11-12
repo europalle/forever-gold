@@ -322,6 +322,17 @@ export async function importAddon(db: PrismaClient, userId: string, text: string
             data: { userId, name: c.name, faction: c.faction ?? "", realm: c.realm ?? "", ...fields },
           });
       }
+      // Addon 0.2.0 and older saved characters by first name only ("Bubbi"),
+      // while TSM and newer addons use the full name ("Bubbi Hunter"). Drop such
+      // first-name rows once a full-name row exists and this upload no longer
+      // sends the short one.
+      const sent = new Set(data.chars.map((c) => c.name));
+      const mine = await tx.character.findMany({ where: { userId }, select: { id: true, name: true, faction: true } });
+      const stale = mine.filter(
+        (r) => !sent.has(r.name) && mine.some((o) => o.id !== r.id && o.faction === r.faction && o.name.startsWith(`${r.name} `)),
+      );
+      if (stale.length) await tx.character.deleteMany({ where: { id: { in: stale.map((r) => r.id) } } });
+
       const items = await tx.itemInfo.createMany({ data: data.items, skipDuplicates: true });
       // Names: fill them in on item details and on the site-wide item list,
       // where TSM's files had none (items nobody is listing right now).

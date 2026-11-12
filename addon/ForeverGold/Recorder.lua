@@ -3,8 +3,7 @@
 local _, FG = ...
 
 local function charKey()
-  local name = UnitName("player")
-  return name and FG.usable(name) and name or nil
+  return FG.playerName()
 end
 
 local function me()
@@ -24,6 +23,12 @@ local function snapshotPlayer()
   c.level = FG.try(UnitLevel, "player")
   c.money = FG.try(GetMoney)
   c.updated = time()
+  c.first = FG.try(UnitName, "player")
+  c.nameSources = FG._nameSources
+  -- Version 0.2.0 and older saved characters under the first name only; drop
+  -- that record so two characters stop sharing it.
+  local key = charKey()
+  if c.first and key and c.first ~= key and FG.db.chars[c.first] then FG.db.chars[c.first] = nil end
 end
 
 -- Professions, gathering included (TSM leaves those out).

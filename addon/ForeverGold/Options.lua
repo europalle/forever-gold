@@ -18,8 +18,9 @@ function FG.statusLines()
   else
     table.insert(lines, "No advice loaded. Start the helper on your PC; when it says it wrote new advice, /reload.")
   end
-  local me = FG.db and FG.db.chars[UnitName("player")]
+  local me = FG.db and FG.db.chars[FG.playerName() or ""]
   if me then
+    table.insert(lines, "This character is saved as: " .. tostring(FG.playerName()))
     table.insert(lines, string.format("This character: level %s, %d kinds of items in bags, %d professions recorded.",
       tostring(me.level or "?"), count(me.bags), count(me.profs)))
   end

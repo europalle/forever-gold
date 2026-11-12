@@ -117,7 +117,7 @@ function UnitGUID(u) if u == "npc" then return TEST_NPC_GUID end if u == "target
 function TEST_TARGET(g) target = g end
 local oldLevel = UnitLevel
 function UnitLevel(u) if u == "target" then return 34 end return oldLevel(u) end
-function UnitName(u) if u == "npc" then return "Test Vendor" end return "Bubbi Hunter" end
+function UnitName(u) if u == "npc" then return "Test Vendor" end if u == "target" then return "Plainstrider" end return "Bubbi" end
 TEST_MERCHANT = { { 4289, 50, 5, -1 }, { 2320, 10, 1, -1 }, { 2321, 100, 1, 3 } }
 function GetMerchantNumItems() return #TEST_MERCHANT end
 function GetMerchantItemID(i) return TEST_MERCHANT[i][1] end
@@ -129,3 +129,4 @@ function GetTrainerServiceCost(i) return TEST_TRAINER[i][3] end
 function GetTrainerServiceSkillReq(i) return TEST_TRAINER[i][4], TEST_TRAINER[i][5], true end
 function GetTrainerServiceLevelReq() return 10 end
 function GetTrainerServiceItemLink(i) return "|Hitem:" .. TEST_TRAINER[i][6] .. "::|h[x]|h" end
+PlayerName = setmetatable({ scripts = {}, events = {}, text = "Bubbi Hunter" }, getmetatable(UIParent))

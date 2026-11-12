@@ -3,6 +3,7 @@ local function has(list, pat) for _, l in ipairs(list) do if tostring(l):find(pa
 
 FireEvent("ADDON_LOADED", "ForeverGold")
 check(ForeverGoldDB and ForeverGoldDB.settings.tooltip == true, "saved variables initialised")
+ForeverGoldDB.chars["Bubbi"] = { level = 1 } -- as saved by 0.2.0 and older
 FireEvent("PLAYER_LOGIN")
 local withData = ForeverGoldData ~= nil
 print("login lines:"); for _, l in ipairs(TEST_LOG) do print("  " .. l) end
@@ -12,6 +13,8 @@ else
   check(has(TEST_LOG, "No advice yet"), "login says there is no advice")
 end
 
+check(FG_NS.playerName() == "Bubbi Hunter", "full name from the player frame")
+check(ForeverGoldDB.chars["Bubbi"] == nil, "old first-name record removed")
 local c = ForeverGoldDB.chars["Bubbi Hunter"]
 check(c and c.level == 30 and c.money == 55606 and c.faction == "Alliance", "player snapshot")
 check(c.profs.Skinning and c.profs.Skinning.lvl == 185, "skinning recorded")
@@ -81,7 +84,7 @@ TEST_TICK(2)
 FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "cast1", 8613)
 FireEvent("LOOT_OPENED")
 local e = ForeverGoldDB.loot[#ForeverGoldDB.loot]
-check(e.k == "skin" and e.npc == 2959 and e.nm == "Bubbi Hunter" and e.lvl == 34 and e.m == 1426 and e.i[2][1] == 249427, "skinning recorded with mob, level, zone, Pristine Leather")
+check(e.k == "skin" and e.npc == 2959 and e.nm == "Plainstrider" and e.lvl == 34 and e.m == 1426 and e.i[2][1] == 249427, "skinning recorded with mob, level, zone, Pristine Leather")
 
 -- Plain loot, window opened twice: recorded once.
 TEST_TICK(30)

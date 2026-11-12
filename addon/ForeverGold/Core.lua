@@ -2,7 +2,7 @@
 local ADDON, FG = ...
 _G.ForeverGold = FG
 
-FG.version = "0.2.0"
+FG.version = "0.2.1"
 FG.GOLD = "|cffffd100"
 FG.MUTED = "|cff9d9d9d"
 FG.GOOD = "|cff40ff40"
@@ -48,6 +48,31 @@ function FG.ago(unix)
   if mins < 60 then return mins .. " min" end
   if mins < 48 * 60 then return math.floor(mins / 60 + 0.5) .. " h" end
   return math.floor(mins / 1440 + 0.5) .. " days"
+end
+
+-- The character's full name. Forever names can have a surname ("Bubbi
+-- Hunter") that UnitName leaves out, so two characters could share "Bubbi".
+-- Try every name source and keep the longest that starts with the first name.
+function FG.playerName()
+  if FG._name then return FG._name end
+  local first = UnitName("player")
+  if not first or not FG.usable(first) then return nil end
+  local best, seen = first, {}
+  local function consider(source, v)
+    if type(v) ~= "string" or v == "" or not FG.usable(v) then return end
+    v = v:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""):match("^%s*(.-)%s*$")
+    seen[source] = v
+    if v:sub(1, #first) == first and #v > #best and #v <= 48 then best = v end
+  end
+  consider("GetUnitName", FG.try(GetUnitName, "player", false))
+  consider("UnitFullName", FG.try(UnitFullName, "player"))
+  consider("UnitNameUnmodified", UnitNameUnmodified and FG.try(UnitNameUnmodified, "player"))
+  consider("PlayerName", _G.PlayerName and FG.try(_G.PlayerName.GetText, _G.PlayerName))
+  local pf = _G.PlayerFrame
+  local pfName = pf and (pf.name or (pf.PlayerFrameContent and pf.PlayerFrameContent.PlayerFrameContentMain and pf.PlayerFrameContent.PlayerFrameContentMain.Name))
+  consider("PlayerFrame", pfName and pfName.GetText and FG.try(pfName.GetText, pfName))
+  FG._name, FG._nameSources = best, seen
+  return best
 end
 
 function FG.data()

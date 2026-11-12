@@ -12,7 +12,7 @@ local CALLS = {
 
 local function owned(id)
   local here, others = 0, 0
-  local me = UnitName("player")
+  local me = FG.playerName()
   for name, c in pairs(FG.db and FG.db.chars or {}) do
     local n = ((c.bags or {})[id] or 0) + ((c.bank or {})[id] or 0) + ((c.mail or {})[id] or 0)
     if name == me then here = here + n else others = others + n end
