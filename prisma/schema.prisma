@@ -98,6 +98,9 @@ model User {
   ledger     LedgerEntry[]
   gold       GoldSample[]
   uploads    Upload[]
+
+  invitesCreated Invite[] @relation("InvitesCreated")
+  inviteUsed     Invite[] @relation("InviteUsed")
 }
 
 // A character as TSM's file describes it. Skills come from TSM's profession
@@ -177,4 +180,23 @@ model Upload {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, kind, at])
+}
+
+// A one-time sign-up link. Only a SHA-256 of the token is stored; the link is
+// shown to the admin once. Used or expired invites cannot create accounts.
+model Invite {
+  id          String    @id @default(cuid())
+  tokenHash   String    @unique
+  note        String    @default("") // who it is for, for the admin's list
+  role        Role      @default(MEMBER)
+  createdById String
+  createdAt   DateTime  @default(now())
+  expiresAt   DateTime
+  usedAt      DateTime?
+  usedById    String?
+
+  createdBy User  @relation("InvitesCreated", fields: [createdById], references: [id], onDelete: Cascade)
+  usedBy    User? @relation("InviteUsed", fields: [usedById], references: [id], onDelete: SetNull)
+
+  @@index([expiresAt])
 }

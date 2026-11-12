@@ -1,25 +1,49 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { db } from "../db";
 import { requireAdmin } from "../auth";
-import { MIN_PASSWORD, hashPassword, normalizeUsername } from "../password";
+import { INVITE_DAYS, newInviteToken } from "../invite";
+import { MIN_PASSWORD, hashPassword } from "../password";
 import type { FormState } from "./auth";
 
-export async function createUser(_prev: FormState, form: FormData): Promise<FormState> {
-  await requireAdmin();
-  const raw = String(form.get("username") ?? "");
-  const username = normalizeUsername(raw);
-  const password = String(form.get("password") ?? "");
+export type InviteFormState = FormState & { link?: string };
+
+// The site's own address, as the browser reached it.
+async function origin(): Promise<string> {
+  const h = await headers();
+  const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000";
+  const proto = h.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
+  return `${proto}://${host}`;
+}
+
+export async function createInvite(_prev: InviteFormState, form: FormData): Promise<InviteFormState> {
+  const me = await requireAdmin();
+  const note = String(form.get("note") ?? "").trim().slice(0, 60);
   const admin = form.get("admin") === "on";
-  if (!username) return { error: "Usernames are 2 to 24 letters, digits, _ or -." };
-  if (password.length < MIN_PASSWORD) return { error: `Give them a password of at least ${MIN_PASSWORD} characters.` };
-  if (await db.user.findUnique({ where: { username } })) return { error: `${username} already has an account.` };
-  await db.user.create({
-    data: { username, displayName: raw.trim(), passwordHash: await hashPassword(password), role: admin ? "ADMIN" : "MEMBER" },
+  const { token, hash } = newInviteToken();
+  await db.invite.create({
+    data: {
+      tokenHash: hash,
+      note,
+      role: admin ? "ADMIN" : "MEMBER",
+      createdById: me.id,
+      expiresAt: new Date(Date.now() + INVITE_DAYS * 86_400_000),
+    },
   });
   revalidatePath("/admin");
-  return { ok: `Account created for ${raw.trim()}. Send them the address and password; they can change it under Account.` };
+  return {
+    ok: `Invite created${note ? ` for ${note}` : ""}. It works once and expires in ${INVITE_DAYS} days. Copy it now: it is not shown again.`,
+    link: `${await origin()}/invite/${token}`,
+  };
+}
+
+export async function revokeInvite(form: FormData): Promise<void> {
+  await requireAdmin();
+  const id = String(form.get("id") ?? "");
+  await db.invite.deleteMany({ where: { id, usedAt: null } });
+  revalidatePath("/admin");
 }
 
 export async function resetPassword(_prev: FormState, form: FormData): Promise<FormState> {

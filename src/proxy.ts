@@ -4,7 +4,7 @@ import { SESSION_COOKIE, verifyToken } from "./lib/session";
 // Send anyone without a validly signed session to /login, and tell search
 // engines to keep out everywhere. requireUser() does the full check (account
 // still exists, session not revoked). The cron endpoint has its own bearer
-// check; /login and robots.txt must stay reachable.
+// check; /login, /invite/<token> and robots.txt must stay reachable.
 export async function proxy(request: NextRequest) {
   const claims = await verifyToken(request.cookies.get(SESSION_COOKIE)?.value);
   // API callers (the upload, later the helper program) get a plain 401, not a
@@ -19,5 +19,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!login|robots.txt|api/cron|_next/static|_next/image|favicon.ico|icon).*)"],
+  matcher: ["/((?!login|invite/|robots.txt|api/cron|_next/static|_next/image|favicon.ico|icon).*)"],
 };

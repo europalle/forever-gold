@@ -22,7 +22,7 @@ What you do once, in order. Each step says what it unlocks. Nothing here needs a
 
 1. Open the site. Type the username you want (your main's name works) and `APP_PASSWORD` as the password. That creates your admin account with that password.
 2. From then on `APP_PASSWORD` does nothing; you can delete it in Vercel. Change your password any time under **Account**.
-3. Guildies: **Admin**, **Add a guildie**, give them a username and a starting password, and send them both with the address. There is no sign-up page, and search engines are told to stay out.
+3. Guildies: **Admin**, **Create invite link**, and send them the link in a private message. They open it, pick their own username and password, and they are in. Each link works once and expires after 7 days; you can cancel unused ones. There is no other way to sign up, and search engines are told to stay out.
 
 ## 3. Scheduler: cron-job.org (collects the prices)
 
