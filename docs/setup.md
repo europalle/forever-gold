@@ -43,10 +43,14 @@ Optional, but cheap insurance if the site or cron-job.org has a bad day.
 2. Name `DATABASE_URL`, value: the `postgres://` string from step 1.
 3. **Actions** tab, **Collect prices**, **Run workflow** to test it. After that it runs every 6 hours.
 
-## 5. Battle.net API client (for the addon, later)
+## 5. Addon and helper (each member, on their own PC)
+
+On the website, **Account**, **Helper program**: download the addon and the helper, unzip the addon into `World of Warcraft\_forever_\Interface\AddOns`, run the helper, and paste a pairing code from the same page. Windows warns about the helper because it is not code-signed: **More info**, **Run anyway**. Leave the helper running while you play; advice shows after `/reload` or the next login.
+
+## 6. Battle.net API client (optional, not needed now)
 
 1. develop.battle.net, sign in, **API Access**, **Create Client**. Any name; redirect URL and service URL can stay empty; tick that it is not for commercial use.
-2. Keep the client ID and secret. They go into Vercel as environment variables when the addon work starts, never into chat or the repo.
+2. Keep the client ID and secret. Only needed if we later want listing depth from Blizzard's API; item details now come from the addon. Keys go into Vercel, never into chat or the repo.
 
 ## Already done, nothing to set up
 

@@ -43,9 +43,23 @@ async function Account() {
       </section>
       <section>
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted">Helper program</h2>
+        <ol className="mb-4 max-w-prose list-decimal space-y-1 pl-5 text-sm text-muted">
+          <li>
+            <a href="/api/download/ForeverGold-addon.zip" className="text-gold hover:underline">Download the addon</a> and unzip it
+            into <code className="text-text">World of Warcraft\_forever_\Interface\AddOns</code>, so there is a{" "}
+            <code className="text-text">ForeverGold</code> folder there.
+          </li>
+          <li>
+            <a href="/api/download/ForeverGoldHelper.exe" className="text-gold hover:underline">Download the helper</a> (Windows) and
+            run it. Windows may say it protected your PC because the program is not signed: choose More info, then Run anyway.
+          </li>
+          <li>Make a pairing code below and paste it into the helper. It finds your WoW folder itself, or asks.</li>
+          <li>Leave the helper running while you play. Your advice shows in game after a /reload or your next login.</li>
+        </ol>
         <p className="mb-3 max-w-prose text-sm text-muted">
-          The helper runs on your PC: it uploads your addon and TSM files when the game saves them, and keeps the addon&apos;s
-          advice fresh. Make a pairing code and paste it into the helper the first time it starts.
+          The helper only uploads <code className="text-text">ForeverGold.lua</code> and{" "}
+          <code className="text-text">TradeSkillMaster.lua</code> when the game saves them, and writes the addon&apos;s advice
+          file. It never touches the game itself.
         </p>
         {devices.length ? (
           <ul className="mb-4 max-w-xl divide-y divide-line rounded border border-line text-sm">
