@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Built with wixl (msitools): see scripts/build-downloads.sh. -->
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Product Id="*" Name="Forever Gold" Language="1033" Version="$(var.Version)" Manufacturer="Forever Gold"
+           UpgradeCode="7E3C2A51-8F0B-4D6E-9C1A-2B5D4F8E6A10">
+    <Package InstallerVersion="500" Compressed="yes" InstallScope="perMachine"
+             Description="Forever Gold: keeps the WoW addon and the guild site in sync" Comments="Forever Gold" />
+    <Media Id="1" Cabinet="app.cab" EmbedCab="yes" />
+
+    <!-- A newer version replaces the old one; an older one never replaces a newer. -->
+    <Upgrade Id="7E3C2A51-8F0B-4D6E-9C1A-2B5D4F8E6A10">
+      <UpgradeVersion Minimum="0.0.0" Maximum="$(var.Version)" IncludeMinimum="yes" IncludeMaximum="no" Property="OLDERFOUND" />
+      <UpgradeVersion Minimum="$(var.Version)" IncludeMinimum="no" OnlyDetect="yes" Property="NEWERFOUND" />
+    </Upgrade>
+    <InstallExecuteSequence>
+      <RemoveExistingProducts After="InstallInitialize" />
+    </InstallExecuteSequence>
+
+    <Icon Id="app.ico" SourceFile="../winres/app.ico" />
+    <Property Id="ARPPRODUCTICON" Value="app.ico" />
+    <Property Id="ARPURLINFOABOUT" Value="https://forevergold.paro.fyi" />
+
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="ProgramFiles64Folder">
+        <Directory Id="INSTALLDIR" Name="Forever Gold">
+          <Component Id="App" Guid="3B9D6C21-5E4F-4A7B-8C2D-1F6E9A0B4C35" Win64="yes">
+            <File Id="AppExe" Name="ForeverGold.exe" Source="$(var.Exe)" KeyPath="yes">
+              <Shortcut Id="StartMenuShortcut" Directory="ProgramMenuFolder" Name="Forever Gold" WorkingDirectory="INSTALLDIR"
+                        Icon="app.ico" IconIndex="0" Advertise="yes" Description="Forever Gold" />
+              <Shortcut Id="DesktopShortcut" Directory="DesktopFolder" Name="Forever Gold" WorkingDirectory="INSTALLDIR"
+                        Icon="app.ico" IconIndex="0" Advertise="yes" Description="Forever Gold" />
+            </File>
+          </Component>
+        </Directory>
+      </Directory>
+      <Directory Id="ProgramMenuFolder" />
+      <Directory Id="DesktopFolder" />
+    </Directory>
+
+    <Feature Id="Main" Title="Forever Gold" Level="1">
+      <ComponentRef Id="App" />
+    </Feature>
+  </Product>
+</Wix>

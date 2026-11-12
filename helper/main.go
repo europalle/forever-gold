@@ -28,7 +28,7 @@ import (
 	"time"
 )
 
-const version = "0.2.0"
+const version = "0.3.0"
 
 const defaultServer = "https://forevergold.paro.fyi"
 
@@ -64,13 +64,15 @@ type App struct {
 	uploads   map[string]Activity // file kind -> last upload
 	syncNow   chan struct{}
 	logWriter io.Writer
+	showFn    func() // open or raise the window
+	quitFn    func() // quit the whole app
 }
 
 var (
 	flagOnce       = flag.Bool("once", false, "sync once and exit (no window)")
 	flagServer     = flag.String("server", "", "server address (default "+defaultServer+")")
 	flagWow        = flag.String("wow", "", "path to World of Warcraft or its _forever_ folder")
-	flagBackground = flag.Bool("background", false, "start without opening the window (used when starting with Windows)")
+	flagBackground = flag.Bool("background", false, "start in the tray without opening the window (used when starting with Windows)")
 	flagNoBrowser  = flag.Bool("no-browser", false, "never open the browser")
 )
 
@@ -113,21 +115,34 @@ func main() {
 		return
 	}
 
-	// One copy at a time: if the page's port is taken, the helper is already
-	// running, so just show its window.
+	// One copy at a time: if the page's port is taken, Forever Gold is already
+	// running, so ask it to show its window and leave.
 	ui, err := startUI(app)
 	if err != nil {
-		openBrowser(uiURL())
+		askRunningToShow()
 		return
-	}
-	if !*flagBackground && !*flagNoBrowser {
-		openBrowser(ui)
 	}
 	if app.cfg.Token != "" {
 		_ = app.checkPairing()
 	}
 	app.save()
-	app.loop()
+	go app.loop()
+	runApp(app, ui, !*flagBackground && !*flagNoBrowser)
+}
+
+func askRunningToShow() {
+	key, err := os.ReadFile(filepath.Join(appDir(), "ui.key"))
+	if err == nil {
+		req, _ := http.NewRequest("POST", "http://"+uiAddr+"/api/show", nil)
+		req.Header.Set("X-FG-Key", strings.TrimSpace(string(key)))
+		if res, err := (&http.Client{Timeout: 5 * time.Second}).Do(req); err == nil {
+			res.Body.Close()
+			if res.StatusCode == 200 {
+				return
+			}
+		}
+	}
+	openBrowser(uiURL())
 }
 
 func (a *App) loop() {

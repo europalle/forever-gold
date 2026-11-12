@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Forever Gold helper</title>
+<title>Forever Gold</title>
 <style>
   :root {
     --bg: #0d0d0c; --panel: #151513; --line: #2a2925; --text: #e8e6df; --muted: #8f8c82;
@@ -47,7 +47,7 @@
 <body>
 <main>
   <header>
-    <h1>Forever Gold helper <small id="version"></small></h1>
+    <h1>Forever Gold <small id="version"></small></h1>
     <span id="status" class="pill warn"><i></i><span>Starting…</span></span>
   </header>
 
@@ -103,11 +103,12 @@
     <button id="site">Open the website</button>
     <label id="startupWrap"><input type="checkbox" id="startup"> Start with Windows</label>
     <span class="spacer"></span>
-    <button id="quit">Stop the helper</button>
+    <button id="quit">Quit Forever Gold</button>
   </div>
   <p class="muted" style="font-size:13px;margin-top:14px">
-    The helper uploads ForeverGold.lua and TradeSkillMaster.lua when the game saves them (logout or /reload) and keeps the
-    addon's advice fresh. It never touches the game itself. Closing this tab leaves it running; use Stop to end it.
+    Forever Gold uploads ForeverGold.lua and TradeSkillMaster.lua when the game saves them (logout or /reload) and keeps
+    the addon's advice fresh. It never touches the game itself. Closing this window keeps it running in the tray by the
+    clock (the gold coin): click the coin to open it again, right-click it to quit.
   </p>
 </main>
 <script>
@@ -209,12 +210,12 @@
   $("saveWow").onclick = () => act($("saveWow"), "/api/wow", { path: $("wowPath").value }, $("wowMsg"), () => { $("wowPath").value = ""; });
   $("detect").onclick = () => act($("detect"), "/api/wow", { detect: true }, $("wowMsg"));
   $("sync").onclick = () => act($("sync"), "/api/sync", {}, null);
-  $("site").onclick = () => { if (state) window.open(state.server + "/account", "_blank", "noopener"); };
+  $("site").onclick = () => act($("site"), "/api/open-site", {}, null);
   $("startup").onchange = (e) => act(e.target, "/api/startup", { on: e.target.checked }, null);
   $("quit").onclick = async () => {
-    if (!confirm("Stop the helper? Uploads and advice stop until you start it again.")) return;
+    if (!confirm("Quit Forever Gold? Uploads and advice stop until you open it again.")) return;
     await call("/api/quit", {}).catch(() => {});
-    setStatus("err", "Stopped. Start ForeverGoldHelper.exe to run it again.");
+    setStatus("err", "Quit. Open Forever Gold from the Start menu to run it again.");
     document.querySelectorAll("button, input").forEach((el) => (el.disabled = true));
   };
 

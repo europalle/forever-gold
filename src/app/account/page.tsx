@@ -50,14 +50,18 @@ async function Account() {
             <code className="text-text">ForeverGold</code> folder there.
           </li>
           <li>
-            <a href="/api/download/ForeverGoldHelper.exe" className="text-gold hover:underline">Download the helper</a> (Windows) and
-            run it. Windows may say it protected your PC because the program is not signed: choose More info, then Run anyway.
+            <a href="/api/download/ForeverGold.msi" className="text-gold hover:underline">Download the Forever Gold app</a> (Windows)
+            and install it. Windows may say it protected your PC because the installer is not signed: choose More info, then Run
+            anyway. It adds Forever Gold to the Start menu and the desktop.
           </li>
-          <li>Make a pairing code below and paste it into the helper. It finds your WoW folder itself, or asks.</li>
-          <li>Leave the helper running while you play. Your advice shows in game after a /reload or your next login.</li>
+          <li>Open Forever Gold, make a pairing code below and paste it in. It finds your WoW folder itself, or asks.</li>
+          <li>
+            Leave it running while you play: it sits in the tray by the clock as a gold coin. Your advice shows in game after a
+            /reload or your next login.
+          </li>
         </ol>
         <p className="mb-3 max-w-prose text-sm text-muted">
-          The helper only uploads <code className="text-text">ForeverGold.lua</code> and{" "}
+          The app only uploads <code className="text-text">ForeverGold.lua</code> and{" "}
           <code className="text-text">TradeSkillMaster.lua</code> when the game saves them, and writes the addon&apos;s advice
           file. It never touches the game itself.
         </p>

@@ -1,13 +1,15 @@
-# Forever Gold helper
+# Forever Gold app (the helper)
 
-A small Windows program that keeps the addon and the website in sync. Go, standard library only.
+A small Windows app that keeps the addon and the website in sync. Go; dependencies: `github.com/jchv/go-webview2` (the window, pure Go over Windows' WebView2) and `fyne.io/systray` (the tray icon), both without cgo, so it cross-compiles from Linux.
 
-- No console window. Its window is a page on `http://127.0.0.1:47830`, opened in the browser when it starts. The page answers only this PC, and every request needs the random key in its address (also stored in `%AppData%\ForeverGold\ui.key`), so other websites cannot read or drive it. Starting the program again while it runs just reopens the page.
-- The page: pairing (paste a code from the website's Account page), the WoW folder (detected in the usual places, or typed), whether the addon is installed and which version, the last uploads and advice, a live activity log, and Sync now, Open the website, Start with Windows, Stop.
-- Start with Windows adds `"<exe>" -background` under `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` (no window at boot).
-- Every 10 seconds: uploads `ForeverGold.lua` and `TradeSkillMaster.lua` from each `WTF\Account\<account>\SavedVariables` when they changed and have been quiet for 3 seconds (the game writes them at logout and /reload). Every 5 minutes, or on Sync now: fetches the advice and replaces `Interface\AddOns\ForeverGold\ForeverGold_Data.lua` (write-then-rename) when it changed (ETag).
-- It touches no other file and never the game process. Settings in `%AppData%\ForeverGold\config.json`, a log in `helper.log`.
+- Installed by `ForeverGold.msi` (built with `wixl` from `installer/ForeverGold.wxs`): Program Files\Forever Gold\ForeverGold.exe, Start menu and desktop shortcuts, listed in Windows' installed apps; a newer version replaces an older one (fixed UpgradeCode).
+- Runs as a gold coin in the tray. Left click or "Open Forever Gold" shows the window; right click has Sync now and Quit. Closing the window keeps it running. Starting it again while it runs raises the window (single instance via the page's port and `/api/show`).
+- The window is WebView2 showing the page the app serves on `127.0.0.1:47830` (`ui.go`, `ui.html`). The page needs the random key in its address (also in `%AppData%\ForeverGold\ui.key`) and checks the Host header, so websites in a browser cannot read or drive it. WebView2's data goes to `%AppData%\ForeverGold\WebView2` (Program Files is not writable). Without WebView2 it falls back to the browser.
+- The page: pairing, the WoW folder (detected or typed), the addon's version, last uploads and advice, a live log, Sync now, Open the website, Start with Windows, Quit.
+- Start with Windows adds `"<exe>" -background` under `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` (tray only at boot).
+- Every 10 seconds: uploads `ForeverGold.lua` and `TradeSkillMaster.lua` from each `WTF\Account\<account>\SavedVariables` when changed and quiet for 3 seconds. Every 5 minutes or on Sync now: fetches the advice and replaces `Interface\AddOns\ForeverGold\ForeverGold_Data.lua` (write-then-rename) when it changed. Nothing else is touched, and never the game process.
+- Icon and Windows resources: `winres/` (go-winres) produce `rsrc_windows_amd64.syso`; regenerate with `go-winres make --in winres/winres.json --arch amd64` after changing the icon or version.
 
-Flags: `-background`, `-no-browser`, `-once` (one sync, no window, for tests), `-server URL`, `-wow PATH`. `FG_TOKEN` and `FG_HOME` override the code and the settings folder, for tests.
+Flags: `-background`, `-no-browser`, `-once` (one sync, no window, for tests), `-server URL`, `-wow PATH`. `FG_TOKEN` and `FG_HOME` override the code and the settings folder, for tests. On Linux there is no tray or window; the page opens in the browser.
 
-Build what members download: `scripts/build-downloads.sh` (Windows exe with `-H windowsgui`, and the addon zip, into `downloads/`, with `SHA256SUMS`).
+Build what members download: `scripts/build-downloads.sh` (needs Go and wixl).

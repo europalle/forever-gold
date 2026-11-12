@@ -137,12 +137,26 @@ func startUI(app *App) (string, error) {
 		return map[string]bool{"on": isStartup()}
 	})
 	api("/api/quit", func(w http.ResponseWriter, r *http.Request) any {
-		app.note(false, "Stopped from the window.")
+		app.note(false, "Quit from the window.")
 		go func() {
 			time.Sleep(300 * time.Millisecond)
+			if app.quitFn != nil {
+				app.quitFn()
+			}
 			os.Exit(0)
 		}()
 		return map[string]string{"ok": "Stopped."}
+	})
+	api("/api/show", func(w http.ResponseWriter, r *http.Request) any {
+		if app.showFn != nil {
+			app.showFn()
+		}
+		return map[string]string{"ok": "Shown."}
+	})
+	api("/api/open-site", func(w http.ResponseWriter, r *http.Request) any {
+		cfg, _ := app.snapshot()
+		openBrowser(cfg.Server + "/account")
+		return map[string]string{"ok": "Opened."}
 	})
 
 	srv := &http.Server{Handler: mux, ReadHeaderTimeout: 5 * time.Second}

@@ -45,7 +45,7 @@ Optional, but cheap insurance if the site or cron-job.org has a bad day.
 
 ## 5. Addon and helper (each member, on their own PC)
 
-On the website, **Account**, **Helper program**: download the addon and the helper, unzip the addon into `World of Warcraft\_forever_\Interface\AddOns`, run the helper, and paste a pairing code from the same page. Windows warns about the helper because it is not code-signed: **More info**, **Run anyway**. Leave the helper running while you play; advice shows after `/reload` or the next login.
+On the website, **Account**, **Helper program**: download the addon and the Forever Gold app. Unzip the addon into `World of Warcraft\_forever_\Interface\AddOns`, install the app (`ForeverGold.msi`), open it from the Start menu, and paste a pairing code from the same page. Windows warns about the installer because it is not code-signed: **More info**, **Run anyway**. Leave it running while you play (a gold coin in the tray by the clock; right-click it to quit); advice shows after `/reload` or the next login.
 
 ## 6. Battle.net API client (optional, not needed now)
 

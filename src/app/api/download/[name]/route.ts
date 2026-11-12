@@ -5,7 +5,7 @@ import { currentUser } from "@/lib/auth";
 // Members-only downloads, built by scripts/build-downloads.sh into downloads/.
 const FILES: Record<string, string> = {
   "ForeverGold-addon.zip": "application/zip",
-  "ForeverGoldHelper.exe": "application/vnd.microsoft.portable-executable",
+  "ForeverGold.msi": "application/x-msi",
 };
 
 export async function GET(_request: Request, { params }: { params: Promise<{ name: string }> }) {
