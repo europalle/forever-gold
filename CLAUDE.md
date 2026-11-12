@@ -9,7 +9,7 @@ A private tool that tells Bubbi what to skin, craft, disenchant, buy and post in
 ## The player
 
 - Market: EU, PvP ruleset, Alliance.
-- Bubbi Hunter (main): Skinning 185/225, Leatherworking 105/150, Cooking 115, First Aid 30.
+- Bubbi Hunter (main, level 30 on 2026-11-12): Skinning 185/225, Leatherworking 105/150, Cooking 115, First Aid 30.
 - Bubbi Banken (level 1 bank alt, sits at the auction house): Tailoring 63/75, Enchanting 35/75. Both capped at 75 until the character is level 10.
 - Bankroll on 2026-11-12: about 10g across both. Advice must respect that: small stakes, no single buy above a few percent of gold.
 - Uses TSM 4.15 with the imported profile `BilisClassicForever(v1.0.1)`, defaults untouched. TSM's saved recipe list was empty and the "mail disenchantables to" character was blank.
@@ -76,4 +76,8 @@ Same as Bubbi's other project unless he says otherwise: Next.js (App Router), Ty
 - A market snapshot is about 0.7 MB in Postgres.
 - Advice: `src/lib/advice.ts` (pure, tested), items and conversions in `src/config/items.ts`, skills in `src/config/player.ts`, fees and thresholds in `src/config/settings.ts`. "Hold" needs 24 hours of history and no fall steeper than 5%: week-two prices slide down from launch highs, and the first version wrongly told Bubbi to hold twelve items into that slide. Cure recipes are Classic Era values except Cured Heavy Hide; the addon should replace them with real reagents.
 - Local dev in the cloud sandbox: Node's `fetch` needs `NODE_USE_ENV_PROXY=1`. Postgres 16 runs on port 5433 with its socket in /tmp (`DATABASE_URL` in `.env.example`); start it with `pg_ctl -D /home/user/pgdata-forever -o '-p 5433 -k /tmp' start` as the postgres user. It does not survive a worker restart.
-- No login yet. Add one before deploying anywhere public.
+- Login (Bubbi chose a single password over Steam): `APP_PASSWORD` plus a signed 30-day cookie keyed by `SESSION_SECRET` (`src/lib/session.ts`, Web Crypto, no dependency). `src/proxy.ts` redirects early; `requireSession()` in `src/lib/auth.ts` is the real check, called before the board reads data. `/api/cron/collect` keeps its own bearer check.
+- `src/lib/database-url.ts` takes the first plain `postgres://` string from `DATABASE_URL`, `POSTGRES_URL` or `POSTGRES_PRISMA_URL` (runtime) and prefers `DATABASE_URL_DIRECT`, `DATABASE_URL_UNPOOLED` or `POSTGRES_URL_NON_POOLING` for migrations, skipping `prisma+postgres://` Accelerate URLs.
+- The collector workflow runs every 2 hours, not hourly: GitHub's free Actions minutes for a private repo (2,000 a month) and TSM's ~3-hour cadence.
+- `docs/setup.md` is the setup checklist for Bubbi. `docs/mockups/addon.html` is the agreed look for the addon: tooltip block under TSM's with a yellow "Forever Gold" header, an auction house panel with Sell / Make / Buy / Hold tabs, a mailbox list of greens for the alt, three chat lines at login. Rows run one search per click at most; nothing posts, buys, attaches or sends.
+- Bubbi's screenshots (2026-11-12) show TSM's in-game "Disenchant Value" has data on Forever, and another addon's "Expected disenchant value" showed "No data". His UI is the Classic-style default with a few addons (RestedXP guides, Questie, Details).

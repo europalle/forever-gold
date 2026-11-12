@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Forever Gold addon mockups</title>
+<style>
+  :root {
+    --tip-bg: rgba(9, 10, 24, 0.94);
+    --tip-line: #6d6d78;
+    --wow-gold: #ffd100;
+    --white: #ffffff;
+    --grey: #9d9d9d;
+    --green: #1eff00;
+    --blue: #0070dd;
+    --purple: #a335ee;
+    --good: #40ff40;
+    --warn: #ffb030;
+    --bad: #ff5050;
+    --frame: #1b1813;
+    --frame-edge: #6b5a35;
+    --frame-hi: #b39657;
+    --row: #24201a;
+    --row-alt: #1f1b16;
+    --text: #e9e3d2;
+    --muted: #a59d88;
+    --page: #0f0d0b;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: radial-gradient(ellipse at 30% 0%, #2c2418 0%, var(--page) 60%) fixed, var(--page);
+    color: var(--text);
+    font-family: "Friz Quadrata TT", "Friz Quadrata Std", "Friz Quadrata", Albertus, Georgia, serif;
+    line-height: 1.35;
+  }
+  main { max-width: 1120px; margin: 0 auto; padding: 32px 16px 64px; }
+  h1 { color: var(--wow-gold); font-size: 26px; margin: 0; font-weight: normal; letter-spacing: .02em; }
+  .lede { color: var(--muted); max-width: 70ch; margin: 8px 0 0; font-family: system-ui, sans-serif; font-size: 15px; }
+  .grid { display: grid; gap: 28px; margin-top: 28px; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); align-items: start; }
+  figure { margin: 0; }
+  figcaption { font-family: system-ui, sans-serif; font-size: 14px; color: var(--muted); margin-top: 10px; max-width: 60ch; }
+  figcaption b { color: var(--text); font-weight: 600; }
+  .stage { background: linear-gradient(160deg, #3a3024, #15120e); border: 1px solid #2c261d; border-radius: 8px; padding: 22px; display: flex; justify-content: center; }
+
+  /* Tooltip, as the game draws it */
+  .tip {
+    width: 300px; background: var(--tip-bg); border: 2px solid var(--tip-line); border-radius: 5px;
+    padding: 8px 10px 9px; font-size: 13px; color: var(--white); box-shadow: 0 6px 18px rgba(0,0,0,.6);
+  }
+  .tip .name { font-size: 15px; }
+  .tip .row { display: flex; justify-content: space-between; gap: 12px; }
+  .tip .gap { height: 8px; }
+  .tip .head { color: var(--wow-gold); margin-top: 2px; }
+  .tip .ind { padding-left: 10px; }
+  .tip .lbl { color: #f2f2f2; }
+  .tip .dim { color: var(--grey); }
+  .q-common { color: var(--white); } .q-green { color: var(--green); } .q-blue { color: var(--blue); }
+  .good { color: var(--good); } .warn { color: var(--warn); } .bad { color: var(--bad); }
+  .gold-t { color: var(--wow-gold); }
+
+  /* Coins: the game's gold, silver, copper dots */
+  .m { white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .c { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin: 0 3px 0 2px; vertical-align: 0; box-shadow: inset -1px -1px 1px rgba(0,0,0,.45), inset 1px 1px 1px rgba(255,255,255,.45); }
+  .cg { background: #e8b923; } .cs { background: #c9cbd3; } .cc { background: #b4683a; }
+
+  /* Frame, Classic style */
+  .frame {
+    width: 100%; max-width: 420px; background: var(--frame); border: 2px solid var(--frame-edge);
+    border-radius: 6px; box-shadow: 0 0 0 1px #000, 0 8px 22px rgba(0,0,0,.6), inset 0 0 0 1px rgba(255,220,140,.08);
+    font-size: 13px;
+  }
+  .bar { display: flex; align-items: center; justify-content: space-between; padding: 6px 8px 6px 12px; background: linear-gradient(#2b2519, #1a1610); border-bottom: 1px solid var(--frame-edge); border-radius: 4px 4px 0 0; }
+  .bar .title { color: var(--wow-gold); font-size: 14px; }
+  .x { width: 18px; height: 18px; border-radius: 3px; background: linear-gradient(#b0281e, #6c120c); border: 1px solid #e0b46a; color: #ffd9a0; font: bold 11px/16px system-ui; text-align: center; }
+  .sub { color: var(--muted); font-size: 12px; padding: 6px 12px 0; }
+  .tabs { display: flex; gap: 4px; padding: 8px 10px 0; }
+  .tab { padding: 4px 10px; border: 1px solid var(--frame-edge); border-bottom: none; border-radius: 5px 5px 0 0; background: #15120d; color: var(--muted); font-size: 12px; }
+  .tab.on { background: var(--row); color: var(--wow-gold); }
+  .tab .n { color: var(--white); margin-left: 4px; }
+  .list { margin: 0 10px; border: 1px solid var(--frame-edge); background: var(--row); }
+  .item { display: grid; grid-template-columns: 26px 1fr auto; gap: 8px; align-items: center; padding: 5px 8px; border-top: 1px solid rgba(0,0,0,.35); }
+  .item:nth-child(even) { background: var(--row-alt); }
+  .item:first-child { border-top: none; }
+  .icon { width: 26px; height: 26px; border: 1px solid #000; border-radius: 3px; box-shadow: inset 0 0 0 1px rgba(255,255,255,.12); }
+  .ic-hide { background: linear-gradient(135deg, #8a6a45, #4b3524); }
+  .ic-cured { background: linear-gradient(135deg, #b58d5c, #6d4e2e); }
+  .ic-leather { background: linear-gradient(135deg, #7d5b3a, #3d2a1a); }
+  .ic-dust { background: radial-gradient(circle at 40% 40%, #d6c3ff, #6e4fb3 60%, #2c1f4d); }
+  .ic-ess { background: radial-gradient(circle at 40% 40%, #9fe7ff, #2f7fb0 60%, #123247); }
+  .ic-cloth { background: linear-gradient(135deg, #c9b38a, #6f5f45); }
+  .ic-green { background: linear-gradient(135deg, #4f6b3a, #1f2d16); box-shadow: inset 0 0 0 1px var(--green); }
+  .ic-salt { background: linear-gradient(135deg, #f0f0f0, #9c9c9c); }
+  .item .nm { color: var(--white); }
+  .item .why { color: var(--muted); font-size: 11.5px; }
+  .item .right { text-align: right; }
+  .item .right .why { white-space: nowrap; }
+  .foot { display: flex; gap: 6px; flex-wrap: wrap; padding: 8px 10px 10px; align-items: center; }
+  .btn { padding: 4px 10px; border-radius: 4px; font-size: 12px; color: var(--wow-gold); background: linear-gradient(#8b1a12, #4b0b07); border: 1px solid #c79b55; box-shadow: inset 0 1px 0 rgba(255,220,160,.25); }
+  .note { color: var(--muted); font-size: 11.5px; padding: 0 12px 10px; }
+  .check { width: 14px; height: 14px; border: 1px solid var(--frame-hi); border-radius: 2px; background: #0e0c09; display: inline-block; }
+  .check.on::after { content: ""; display: block; width: 8px; height: 4px; margin: 3px 0 0 2px; border-left: 2px solid var(--wow-gold); border-bottom: 2px solid var(--wow-gold); transform: rotate(-45deg); }
+  .chat { font-size: 14px; color: #ffffff; text-shadow: 1px 1px 0 #000; background: rgba(0,0,0,.35); padding: 8px 10px; border-radius: 4px; width: 100%; max-width: 520px; }
+  .chat .tag { color: var(--wow-gold); }
+  .wide { grid-column: 1 / -1; }
+  .two { width: 100%; }
+  .two > .frame { flex: 1 1 340px; }
+  .two { display: flex; gap: 22px; flex-wrap: wrap; justify-content: center; }
+  .rules { font-family: system-ui, sans-serif; font-size: 14px; color: var(--muted); margin-top: 36px; border-top: 1px solid #2c261d; padding-top: 16px; }
+  .rules li { margin: 4px 0; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Forever Gold: how the addon would look</h1>
+  <p class="lede">Mockups in the game's Classic-style look, matched to your tooltips and frames. Hide, leather, cloth and enchanting prices are real (EU Alliance PvP, TSM scan 2026-11-12 12:25 UTC). The green item and its disenchant maths are an example. Nothing here posts, buys or sends on its own.</p>
+
+  <div class="grid">
+    <figure>
+      <div class="stage">
+        <div class="tip">
+          <div class="name q-common">Medium Hide</div>
+          <div>Max Stack: 20</div>
+          <div class="row"><span>Sell Price:</span><span class="m">10<i class="c cc"></i></span></div>
+          <div class="gap"></div>
+          <div class="head">Forever Gold</div>
+          <div class="ind row"><span class="lbl">Cheapest now</span><span class="m">2<i class="c cs"></i>09<i class="c cc"></i></span></div>
+          <div class="ind row"><span class="lbl">Market value</span><span class="m">4<i class="c cs"></i>20<i class="c cc"></i></span></div>
+          <div class="ind row"><span class="lbl">Sells (EU)</span><span>90% · 549 a day</span></div>
+          <div class="ind row"><span class="lbl">Call</span><span class="good">Cure: +48<i class="c cc"></i>each</span></div>
+          <div class="ind dim">Cured sells 3s 19c. Salt 56c on the AH.</div>
+          <div class="ind row"><span class="lbl">You have</span><span>12 · Banken 0</span></div>
+        </div>
+      </div>
+      <figcaption><b>Item tooltip.</b> A short block under TSM's, same yellow header style. Five lines: price, value, demand, the call, what you own. The call matches the website.</figcaption>
+    </figure>
+
+    <figure>
+      <div class="stage">
+        <div class="tip">
+          <div class="name q-green">Sentry's Gloves of the Monkey</div>
+          <div>Binds when equipped</div>
+          <div class="row"><span>Hands</span><span>Mail</span></div>
+          <div>+4 Agility</div>
+          <div>+4 Stamina</div>
+          <div>Requires Level 29</div>
+          <div class="gap"></div>
+          <div class="head">Forever Gold</div>
+          <div class="ind row"><span class="lbl">Disenchant value</span><span class="m">19<i class="c cs"></i>23<i class="c cc"></i></span></div>
+          <div class="ind dim">75% 2-5 Soul Dust · 20% 1-2 Lesser Mystic · 5% Small Glowing Shard, after cut</div>
+          <div class="ind row"><span class="lbl">Listed at</span><span class="m">12<i class="c cs"></i>00<i class="c cc"></i></span></div>
+          <div class="ind row"><span class="lbl">Call</span><span class="good">Buy for Banken: +7<i class="c cs"></i>23<i class="c cc"></i></span></div>
+          <div class="ind dim">Under your 50s limit per buy (5% of gold).</div>
+        </div>
+      </div>
+      <figcaption><b>Green item tooltip.</b> What it disenchants into and whether it is worth buying for the alt, with the risk cap from your bankroll. TSM's own disenchant value stays where it is.</figcaption>
+    </figure>
+
+    <figure class="wide">
+      <div class="stage">
+        <div class="two">
+          <div class="frame">
+            <div class="bar"><span class="title">Forever Gold</span><span class="x">x</span></div>
+            <div class="sub">Advice from 12:25 UTC · Bubbi Hunter · 5g 56s</div>
+            <div class="tabs">
+              <span class="tab on">Sell<span class="n">4</span></span>
+              <span class="tab">Make<span class="n">2</span></span>
+              <span class="tab">Buy<span class="n">3</span></span>
+              <span class="tab">Hold<span class="n">0</span></span>
+            </div>
+            <div class="list">
+              <div class="item"><span class="icon ic-leather"></span><div><div class="nm">Thick Leather <span class="dim">x18</span></div><div class="why">Match the cheapest. Sells 86%.</div></div><div class="right"><div class="m">4<i class="c cs"></i>99<i class="c cc"></i></div><div class="why">nets 85s 14c</div></div></div>
+              <div class="item"><span class="icon ic-hide"></span><div><div class="nm">Heavy Hide <span class="dim">x3</span></div><div class="why">Match the cheapest. Sells 85%.</div></div><div class="right"><div class="m">11<i class="c cs"></i>65<i class="c cc"></i></div><div class="why">nets 33s 18c</div></div></div>
+              <div class="item"><span class="icon ic-leather"></span><div><div class="nm">Medium Leather <span class="dim">x40</span></div><div class="why">Match the cheapest. Sells 95%.</div></div><div class="right"><div class="m">93<i class="c cc"></i></div><div class="why">nets 35s 20c</div></div></div>
+              <div class="item"><span class="icon ic-cloth"></span><div><div class="nm">Silk Cloth <span class="dim">x22</span></div><div class="why">Match the cheapest. Sells 93%.</div></div><div class="right"><div class="m">1<i class="c cs"></i>90<i class="c cc"></i></div><div class="why">nets 39s 66c</div></div></div>
+            </div>
+            <div class="foot"><span class="btn">Search selected</span><span class="btn">Copy as TSM group</span></div>
+            <div class="note">Click a row to search it on the auction house. You post it.</div>
+          </div>
+
+          <div class="frame">
+            <div class="bar"><span class="title">Forever Gold</span><span class="x">x</span></div>
+            <div class="sub">Advice from 12:25 UTC · Bubbi Hunter</div>
+            <div class="tabs">
+              <span class="tab">Sell<span class="n">4</span></span>
+              <span class="tab on">Make<span class="n">2</span></span>
+              <span class="tab">Buy<span class="n">3</span></span>
+              <span class="tab">Hold<span class="n">0</span></span>
+            </div>
+            <div class="list">
+              <div class="item"><span class="icon ic-cured"></span><div><div class="nm">Cure Medium Hide <span class="dim">x12</span></div><div class="why">Needs 12 Salt. You have 0: buy at up to 60c.</div></div><div class="right"><div class="m good">+5<i class="c cs"></i>76<i class="c cc"></i></div><div class="why">+48c each</div></div></div>
+              <div class="item"><span class="icon ic-cured"></span><div><div class="nm">Cure Light Hide <span class="dim">x7</span></div><div class="why">Needs 7 Salt.</div></div><div class="right"><div class="m good">+2<i class="c cs"></i>45<i class="c cc"></i></div><div class="why">+35c each</div></div></div>
+              <div class="item"><span class="icon ic-salt"></span><div><div class="nm">Salt <span class="dim">buy 19</span></div><div class="why">For both cures. Cheapest 56c.</div></div><div class="right"><div class="m">10<i class="c cs"></i>64<i class="c cc"></i></div><div class="why">total</div></div></div>
+            </div>
+            <div class="foot"><span class="btn">Search Salt</span></div>
+            <div class="note">At 150 Leatherworking, curing Heavy Hide pays +73c each.</div>
+          </div>
+        </div>
+      </div>
+      <figcaption><b>Auction house panel.</b> Docks to the right of the auction house window. Tabs follow the website: what to post and at what price, what to craft first and the reagents it needs, what to buy, what to wait on. A row click runs one search; posting and buying stay in the normal auction house buttons, or in TSM. "Copy as TSM group" gives you an import string for TSM's Auctioning.</figcaption>
+    </figure>
+
+    <figure>
+      <div class="stage">
+        <div class="frame">
+          <div class="bar"><span class="title">Send to Bubbi Banken</span><span class="x">x</span></div>
+          <div class="sub">Mailbox · 30c postage per item</div>
+          <div class="list">
+            <div class="item"><span class="check on"></span><div><div class="nm q-green">Sentry's Gloves of the Monkey</div><div class="why">Disenchant: ~19s 23c, vendor 1s 80c</div></div><div class="right m">bag 2</div></div>
+            <div class="item"><span class="check on"></span><div><div class="nm q-green">Ranger Cord of the Eagle</div><div class="why">Disenchant: ~16s 50c, vendor 1s 12c</div></div><div class="right m">bag 3</div></div>
+            <div class="item"><span class="check"></span><div><div class="nm q-green">Wolf Rider's Gloves</div><div class="why">Sells for more than it disenchants: post it.</div></div><div class="right m">bag 3</div></div>
+          </div>
+          <div class="foot"><span class="btn">Highlight in bags</span></div>
+          <div class="note">Highlights the ticked items so you can drag them into the mail.</div>
+        </div>
+      </div>
+      <figcaption><b>Mailbox list.</b> Shown when the main opens a mailbox: which greens the alt should disenchant and which to sell as they are. It only highlights; you attach and send.</figcaption>
+    </figure>
+
+    <figure>
+      <div class="stage">
+        <div class="chat">
+          <div><span class="tag">[Forever Gold]</span> Advice from 12:25 UTC (3 h old).</div>
+          <div><span class="tag">[Forever Gold]</span> 4 to post · 2 to cure · 3 greens for Banken. Open the auction house to see them.</div>
+          <div><span class="tag">[Forever Gold]</span> <span class="warn">Deposits are 1 silver per listing until maintenance: post in full stacks.</span></div>
+        </div>
+      </div>
+      <figcaption><b>Login message.</b> Three lines in chat when you log in, so you know the advice is fresh and what is waiting. Can be turned off.</figcaption>
+    </figure>
+  </div>
+
+  <ul class="rules">
+    <li>The addon reads and shows. It never posts, buys, cancels, sends mail or crafts. A click on a row runs one auction house search at most.</li>
+    <li>Prices and calls come from the website, through a small helper on your PC that copies a file into the addon folder. New advice shows after a /reload or the next login.</li>
+    <li>The addon also writes your bags, bank, mail, sales and recipes to its saved file at logout, so the website learns what you actually own and sold.</li>
+  </ul>
+</main>
+</body>
+</html>
