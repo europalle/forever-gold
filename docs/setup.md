@@ -16,14 +16,14 @@ What you do once, in order. Each step says what it unlocks. Nothing here needs a
    - `CRON_SECRET`: another 64 random characters, different from the first. The scheduler uses it in step 3.
 3. Database: in **Storage**, open the database and **Connect Project** to `forever-gold`. That adds its connection strings to the project; the app picks the right one by itself.
 4. **Deploy**. The build applies the database migrations first.
-5. Optional: **Settings**, **Domains**, add `gold.paro.fyi`, then a CNAME record `gold` pointing to `cname.vercel-dns.com` wherever paro.fyi's DNS lives.
+5. **Settings**, **Domains**, add `forevergold.paro.fyi`. Then, wherever paro.fyi's DNS lives, add a CNAME record named `forevergold` pointing to `cname.vercel-dns.com`. Vercel shows a green check once it resolves; HTTPS is set up automatically.
 
 ## 3. Scheduler: cron-job.org (collects the prices)
 
 Free, runs on the minute, and emails you when a run fails.
 
 1. Sign up at cron-job.org and **Create cronjob**.
-2. URL: `https://<your site>/api/cron/collect` (for example `https://gold.paro.fyi/api/cron/collect`).
+2. URL: `https://forevergold.paro.fyi/api/cron/collect`.
 3. Schedule: every hour, at minute 30. TSM publishes around :25 every 3 hours, so this picks up each scan within minutes.
 4. **Advanced**, **Headers**, add one: name `Authorization`, value `Bearer ` followed by your `CRON_SECRET` (one space after Bearer).
 5. **Notifications**: turn on "execution failed".
