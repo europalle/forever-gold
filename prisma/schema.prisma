@@ -1,0 +1,77 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// An item as TSM names it. The id is the game's item ID.
+model Item {
+  id        Int      @id
+  name      String
+  updatedAt DateTime @updatedAt
+
+  marketPrices MarketPrice[]
+  regionStats  RegionStat[]
+}
+
+enum SnapshotKind {
+  MARKET // one auction house: region, ruleset and faction
+  REGION // every ruleset and faction in a region together
+}
+
+// One TSM file as it was on fetch. A file is stored once per `sourceUpdatedAt`,
+// the scan time TSM writes into every row, so polling more often than TSM
+// publishes costs nothing.
+model Snapshot {
+  id              Int          @id @default(autoincrement())
+  kind            SnapshotKind
+  scope           String // "eu-pvp-alliance" or "eu"
+  sourceUpdatedAt DateTime
+  fetchedAt       DateTime     @default(now())
+  etag            String?
+  itemCount       Int
+
+  marketPrices MarketPrice[]
+  regionStats  RegionStat[]
+
+  @@unique([kind, scope, sourceUpdatedAt])
+  @@index([kind, scope, fetchedAt])
+}
+
+// A row of the market file. Copper. A null price means TSM had none: for
+// minBuyout and recent, nothing was listed at scan time.
+model MarketPrice {
+  snapshotId  Int
+  itemId      Int
+  marketValue Int?
+  minBuyout   Int?
+  recent      Int?
+  historical  Int?
+
+  snapshot Snapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+  item     Item     @relation(fields: [itemId], references: [id])
+
+  @@id([snapshotId, itemId])
+  @@index([itemId])
+}
+
+// A row of the region file. Copper, except saleRate (share of posted auctions
+// that sell, 0 to 1) and soldPerDay (units sold per auction house per day).
+model RegionStat {
+  snapshotId   Int
+  itemId       Int
+  marketValue  Int?
+  historical   Int?
+  avgSalePrice Int?
+  saleRate     Float?
+  soldPerDay   Float?
+
+  snapshot Snapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+  item     Item     @relation(fields: [itemId], references: [id])
+
+  @@id([snapshotId, itemId])
+  @@index([itemId])
+}
