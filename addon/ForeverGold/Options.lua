@@ -24,6 +24,7 @@ function FG.statusLines()
       tostring(me.level or "?"), count(me.bags), count(me.profs)))
   end
   table.insert(lines, string.format("Item details looked up so far: %d. Saved at logout or /reload; the helper uploads them.", count(FG.db and FG.db.items)))
+  table.insert(lines, string.format("Recorded: %d loot windows, %d vendors, %d trainers.", #(FG.db and FG.db.loot or {}), count(FG.db and FG.db.vendors), count(FG.db and FG.db.trainers)))
   table.insert(lines, string.format("Tooltip %s, login lines %s, minimap button %s.",
     FG.db and FG.db.settings.tooltip and "on" or "off", FG.db and FG.db.settings.chat and "on" or "off",
     FG.db and FG.db.settings.minimap and "on" or "off"))

@@ -3,6 +3,7 @@ import { MARKET } from "@/config/player";
 import { SETTINGS } from "@/config/settings";
 import { adviseItem, lockedGains, type Call, type Quote } from "../advice";
 import { db } from "../db";
+import { applyRecipes, recipesFromCharacters } from "../recipes";
 import { marketScope } from "../tsm";
 import { skillsFor } from "./ledger";
 
@@ -41,7 +42,11 @@ export async function board(userId: string): Promise<Board> {
     ...TRACKED,
     ...extraNames.map((n) => ({ id: n.id, name: n.name || `Item ${n.id}`, group: "From your trades" as const })),
   ];
-  const ids = tracked.map((t) => t.id);
+  // Conversions with the user's real recipes where the addon has read them.
+  const chars = await db.character.findMany({ where: { userId }, select: { recipes: true } });
+  const conversions = applyRecipes(CONVERSIONS, recipesFromCharacters(chars));
+  // Prices for tracked items and every reagent the conversions need.
+  const ids = [...new Set([...tracked.map((t) => t.id), ...conversions.flatMap((c) => [c.from.id, c.output.id, ...c.extras.map((e) => e.id)])])];
   const since = new Date(Date.now() - TREND_DAYS * 86_400_000);
 
   const skills = await skillsFor(userId);
@@ -57,13 +62,20 @@ export async function board(userId: string): Promise<Board> {
     db.snapshot.count({ where: { kind: "MARKET", scope } }),
   ]);
 
-  const [now, then, stats] = await Promise.all([
+  const [now, then, stats, vendor] = await Promise.all([
     latest ? db.marketPrice.findMany({ where: { snapshotId: latest.id, itemId: { in: ids } } }) : [],
     oldest && oldest.id !== latest?.id
       ? db.marketPrice.findMany({ where: { snapshotId: oldest.id, itemId: { in: ids } } })
       : [],
     region ? db.regionStat.findMany({ where: { snapshotId: region.id, itemId: { in: ids } } }) : [],
+    db.vendorItem.findMany({ where: { itemId: { in: ids }, extended: false }, select: { itemId: true, price: true, stack: true } }),
   ]);
+  // Cheapest vendor price per unit, from members' addons.
+  const vendorBy = new Map<number, number>();
+  for (const v of vendor) {
+    const unit = v.price / Math.max(1, v.stack);
+    if (!vendorBy.has(v.itemId) || unit < vendorBy.get(v.itemId)!) vendorBy.set(v.itemId, unit);
+  }
 
   const nowBy = new Map(now.map((p) => [p.itemId, p]));
   const thenBy = new Map(then.map((p) => [p.itemId, p]));
@@ -83,7 +95,8 @@ export async function board(userId: string): Promise<Board> {
   for (const id of ids) {
     const p = nowBy.get(id);
     const s = statBy.get(id);
-    if (!p && !s) continue;
+    const vb = vendorBy.get(id) ?? null;
+    if (!p && !s && vb === null) continue;
     quotes.set(id, {
       minBuyout: p?.minBuyout ?? null,
       marketValue: p?.marketValue ?? null,
@@ -92,6 +105,7 @@ export async function board(userId: string): Promise<Board> {
       soldPerDay: s?.soldPerDay ?? null,
       trend: trendOf(id),
       trendHours,
+      vendorBuy: vb,
     });
   }
 
@@ -102,8 +116,8 @@ export async function board(userId: string): Promise<Board> {
       item,
       quote: quotes.get(item.id) ?? null,
       trend: trendOf(item.id),
-      call: adviseItem(item.id, quotes, CONVERSIONS, bestSkill, SETTINGS),
-      locked: lockedGains(item.id, quotes, CONVERSIONS, bestSkill, SETTINGS).map(({ conv, r }) => ({
+      call: adviseItem(item.id, quotes, conversions, bestSkill, SETTINGS),
+      locked: lockedGains(item.id, quotes, conversions, bestSkill, SETTINGS).map(({ conv, r }) => ({
         skill: conv.skill,
         verb: conv.verb,
         outputName: nameOf(conv.output.id),

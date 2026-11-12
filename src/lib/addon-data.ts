@@ -71,7 +71,11 @@ export async function buildAddonData(userId: string, displayName: string, now = 
 
   // Items on the market whose details the site does not know yet.
   const known = new Set((await db.itemInfo.findMany({ select: { id: true } })).map((i) => i.id));
-  const want = prices.map((x) => x.itemId).filter((id) => !known.has(id)).slice(0, WANT_LIMIT);
+  const nameless = await db.$queryRaw<{ itemId: number }[]>`
+    SELECT DISTINCT l."itemId" FROM "LedgerEntry" l
+    LEFT JOIN "Item" i ON i.id = l."itemId"
+    WHERE l."userId" = ${userId} AND l."itemId" IS NOT NULL AND (i.id IS NULL OR i.name = '')`;
+  const want = [...new Set([...nameless.map((r) => r.itemId), ...prices.map((x) => x.itemId).filter((id) => !known.has(id))])].slice(0, WANT_LIMIT);
 
   const data: LuaOut = {
     version: ADDON_DATA_VERSION,

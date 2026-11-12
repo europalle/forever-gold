@@ -66,6 +66,7 @@ export type Conversion = {
   profession: "Leatherworking";
   skill: number;
   verified: boolean; // checked in Forever, not just Classic Era
+  known?: boolean; // a character of this user has learned it (from the addon)
 };
 
 export const CONVERSIONS: Conversion[] = [

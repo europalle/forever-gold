@@ -101,3 +101,31 @@ Settings = {
   RegisterAddOnCategory = function(cat) TEST_SETTINGS_REGISTERED = true end,
   OpenToCategory = function(id) TEST_SETTINGS_OPENED = id end,
 }
+local clock = 1000
+function GetTime() return clock end
+function TEST_TICK(s) clock = clock + s end
+function strsplit(sep, s) local out = {} for part in string.gmatch(s, "([^" .. sep .. "]+)") do table.insert(out, part) end return unpack(out) end
+C_Spell = { GetSpellName = function(id) return ({ [8613] = "Skinning", [13262] = "Disenchant", [2366] = "Herb Gathering" })[id] end }
+C_Map = { GetBestMapForUnit = function() return 1426 end }
+TEST_LOOT = {}
+function GetNumLootItems() return #TEST_LOOT end
+function GetLootSlotLink(i) return "|Hitem:" .. TEST_LOOT[i][1] .. "::|h[x]|h" end
+function GetLootSlotInfo(i) return 0, "x", TEST_LOOT[i][2] end
+function GetLootSourceInfo(i) return TEST_LOOT_GUID end
+local target = nil
+function UnitGUID(u) if u == "npc" then return TEST_NPC_GUID end if u == "target" then return target end end
+function TEST_TARGET(g) target = g end
+local oldLevel = UnitLevel
+function UnitLevel(u) if u == "target" then return 34 end return oldLevel(u) end
+function UnitName(u) if u == "npc" then return "Test Vendor" end return "Bubbi Hunter" end
+TEST_MERCHANT = { { 4289, 50, 5, -1 }, { 2320, 10, 1, -1 }, { 2321, 100, 1, 3 } }
+function GetMerchantNumItems() return #TEST_MERCHANT end
+function GetMerchantItemID(i) return TEST_MERCHANT[i][1] end
+function GetMerchantItemInfo(i) local m = TEST_MERCHANT[i]; return "x", 0, m[2], m[3], m[4], true, true, nil end
+TEST_TRAINER = { { "Apprentice Leatherworking", "available", 10, "Leatherworking", 0, 5 }, { "Cured Heavy Hide", "unavailable", 2000, "Leatherworking", 150, 4236 } }
+function GetNumTrainerServices() return #TEST_TRAINER end
+function GetTrainerServiceInfo(i) return TEST_TRAINER[i][1], nil, TEST_TRAINER[i][2] end
+function GetTrainerServiceCost(i) return TEST_TRAINER[i][3] end
+function GetTrainerServiceSkillReq(i) return TEST_TRAINER[i][4], TEST_TRAINER[i][5], true end
+function GetTrainerServiceLevelReq() return 10 end
+function GetTrainerServiceItemLink(i) return "|Hitem:" .. TEST_TRAINER[i][6] .. "::|h[x]|h" end

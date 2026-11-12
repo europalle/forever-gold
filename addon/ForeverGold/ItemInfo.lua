@@ -9,7 +9,7 @@ local function getInfo(id)
   local f = (C_Item and C_Item.GetItemInfo) or GetItemInfo
   local name, _, quality, itemLevel, reqLevel, _, _, maxStack, equipLoc, _, sellPrice, classID, subclassID, bindType = FG.try(f, id)
   if not name then return nil end
-  return { q = quality, il = itemLevel, rl = reqLevel, c = classID, s = subclassID, e = (equipLoc ~= "" and equipLoc) or nil, v = sellPrice, st = maxStack, b = bindType }
+  return { n = name, q = quality, il = itemLevel, rl = reqLevel, c = classID, s = subclassID, e = (equipLoc ~= "" and equipLoc) or nil, v = sellPrice, st = maxStack, b = bindType }
 end
 
 local function remember(id)
@@ -41,6 +41,13 @@ local function tick()
     ticker:Cancel()
     ticker = nil
   end
+end
+
+-- Anything the addon sees (loot, vendors, trainers) can ask for details.
+function FG.queueItem(id)
+  if type(id) ~= "number" or not FG.db or FG.db.items[id] then return end
+  table.insert(queue, id)
+  if not ticker and C_Timer then ticker = C_Timer.NewTicker(0.5, tick) end
 end
 
 FG.on("PLAYER_LOGIN", function()

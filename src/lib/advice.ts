@@ -11,6 +11,7 @@ export type Quote = {
   soldPerDay: number | null; // region
   trend?: number | null; // market value change over the trend window, as a share
   trendHours?: number; // how long that window is
+  vendorBuy?: number | null; // cheapest vendor price per unit, from members' addons
 };
 
 export type Call =
@@ -23,6 +24,18 @@ export type Call =
 // nothing is listed.
 export function postPrice(q: Quote): number | null {
   return q.minBuyout ?? q.marketValue;
+}
+
+// What a reagent costs to buy: the cheaper of the auction house and a vendor.
+export function buyPrice(q: Quote): number | null {
+  const ah = q.minBuyout ?? q.marketValue;
+  if (q.vendorBuy != null && (ah === null || q.vendorBuy < ah)) return q.vendorBuy;
+  return ah;
+}
+
+// Learned recipes count as makeable whatever the skill number says.
+export function canMake(conv: Conversion, skillFor: (profession: string) => number): boolean {
+  return conv.known === true || skillFor(conv.profession) >= conv.skill;
 }
 
 // What one unit brings in after the cut and the expected deposit loss. The
@@ -51,7 +64,7 @@ export function conversionGain(
   let extrasCost = 0;
   for (const e of conv.extras) {
     const p = quotes.get(e.id);
-    const price = p ? postPrice(p) : null;
+    const price = p ? buyPrice(p) : null;
     if (price === null) return null;
     extrasCost += price * e.qty;
   }
@@ -73,7 +86,7 @@ export function adviseItem(
   // Best conversion the characters can already make.
   let best: { conv: Conversion; gain: number } | null = null;
   for (const conv of conversions) {
-    if (conv.from.id !== itemId || skillFor(conv.profession) < conv.skill) continue;
+    if (conv.from.id !== itemId || !canMake(conv, skillFor)) continue;
     const r = conversionGain(conv, quotes, s);
     if (!r) continue;
     const out = quotes.get(conv.output.id);
@@ -130,7 +143,7 @@ export function lockedGains(
   s: Settings,
 ) {
   return conversions
-    .filter((c) => c.from.id === itemId && skillFor(c.profession) < c.skill)
+    .filter((c) => c.from.id === itemId && !canMake(c, skillFor))
     .filter((c) => (quotes.get(c.output.id)?.saleRate ?? 1) >= s.slowSaleRate)
     .map((c) => ({ conv: c, r: conversionGain(c, quotes, s) }))
     .filter((x): x is { conv: Conversion; r: NonNullable<ReturnType<typeof conversionGain>> } => !!x.r && x.r.gainPerUnit > 0);

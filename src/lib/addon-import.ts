@@ -43,6 +43,7 @@ export type AddonChar = {
 
 export type AddonItem = {
   id: number;
+  name: string | null;
   quality: number | null;
   itemLevel: number | null;
   reqLevel: number | null;
@@ -67,7 +68,54 @@ export type AddonInvoice = {
   net: number | null;
 };
 
-export function readAddonFile(text: string): { chars: AddonChar[]; items: AddonItem[]; invoices: AddonInvoice[] } {
+export type AddonLoot = {
+  key: string;
+  time: Date;
+  kind: string;
+  npcId: number | null;
+  npcName: string | null;
+  npcLevel: number | null;
+  mapId: number | null;
+  sourceItemId: number | null;
+  items: [number, number][];
+};
+
+export type AddonVendorItem = {
+  npcId: number;
+  itemId: number;
+  vendorName: string | null;
+  mapId: number | null;
+  price: number;
+  stack: number;
+  stock: number | null;
+  extended: boolean;
+  seenAt: Date;
+};
+
+export type AddonTrainerService = {
+  npcId: number;
+  name: string;
+  trainerName: string | null;
+  mapId: number | null;
+  cost: number | null;
+  skill: string | null;
+  skillLevel: number | null;
+  levelReq: number | null;
+  itemId: number | null;
+  category: string | null;
+  seenAt: Date;
+};
+
+const LOOT_KINDS = new Set(["loot", "skin", "herb", "mine", "fish", "disenchant"]);
+
+export function readAddonFile(text: string): {
+  chars: AddonChar[];
+  items: AddonItem[];
+  invoices: AddonInvoice[];
+  loot: AddonLoot[];
+  vendorItems: AddonVendorItem[];
+  trainerServices: AddonTrainerService[];
+} {
   const db = parseSavedVariables(text).ForeverGoldDB;
   if (!isTable(db)) throw new NotAddonFile("This is not the Forever Gold addon's saved file: no ForeverGoldDB inside.");
 
@@ -124,6 +172,7 @@ export function readAddonFile(text: string): { chars: AddonChar[]; items: AddonI
     if (!id || !isTable(raw)) continue;
     items.push({
       id,
+      name: str(raw.n, 120),
       quality: int(raw.q, 0, 10),
       itemLevel: int(raw.il, 0, 1000),
       reqLevel: int(raw.rl, 0, 100),
@@ -155,10 +204,97 @@ export function readAddonFile(text: string): { chars: AddonChar[]; items: AddonI
       net: int(raw.net),
     });
   }
-  return { chars, items, invoices };
+  const loot: AddonLoot[] = [];
+  for (const raw of list(db.loot).slice(-5000)) {
+    const e = tbl(raw);
+    const t = int(e.t, 1);
+    const kind = str(e.k, 20);
+    if (!t || !kind || !LOOT_KINDS.has(kind)) continue;
+    const items = list(e.i)
+      .map((x) => list(x))
+      .map(([id, q]) => [int(id, 1), int(q, 1, 10_000)] as const)
+      .filter((x): x is [number, number] => x[0] !== null && x[1] !== null)
+      .slice(0, 20);
+    if (!items.length) continue;
+    const ev = {
+      time: new Date(t * 1000),
+      kind,
+      npcId: int(e.npc, 1),
+      npcName: str(e.nm, 60),
+      npcLevel: int(e.lvl, 1, 100),
+      mapId: int(e.m, 1),
+      sourceItemId: int(e.src, 1),
+      items,
+    };
+    loot.push({ key: [t, kind, ev.npcId, ev.sourceItemId, JSON.stringify(items)].join("|"), ...ev });
+  }
+
+  const vendorItems: AddonVendorItem[] = [];
+  for (const [npc, raw] of Object.entries(tbl(db.vendors)).slice(0, 500)) {
+    const npcId = int(Number(npc), 1);
+    const v = tbl(raw);
+    const t = int(v.t, 1);
+    if (!npcId || !t) continue;
+    for (const [item, r] of Object.entries(tbl(v.items)).slice(0, 300)) {
+      const itemId = int(Number(item), 1);
+      const x = tbl(r);
+      const price = int(x.p);
+      if (!itemId || price === null) continue;
+      vendorItems.push({
+        npcId,
+        itemId,
+        vendorName: str(v.name, 60),
+        mapId: int(v.m, 1),
+        price,
+        stack: int(x.q, 1, 10_000) ?? 1,
+        stock: int(x.n, 0, 10_000),
+        extended: x.x === 1 || x.x === true,
+        seenAt: new Date(t * 1000),
+      });
+    }
+  }
+
+  const trainerServices: AddonTrainerService[] = [];
+  for (const [npc, raw] of Object.entries(tbl(db.trainers)).slice(0, 100)) {
+    const npcId = int(Number(npc), 1);
+    const v = tbl(raw);
+    const t = int(v.t, 1);
+    if (!npcId || !t) continue;
+    const seen = new Set<string>();
+    for (const r of list(v.services).slice(0, 400)) {
+      const x = tbl(r);
+      const name = str(x.n, 100);
+      if (!name || seen.has(name)) continue;
+      seen.add(name);
+      trainerServices.push({
+        npcId,
+        name,
+        trainerName: str(v.name, 60),
+        mapId: int(v.m, 1),
+        cost: int(x.c),
+        skill: str(x.sk, 40),
+        skillLevel: int(x.s, 0, 1000),
+        levelReq: int(x.l, 0, 100),
+        itemId: int(x.item, 1),
+        category: str(x.st, 20),
+        seenAt: new Date(t * 1000),
+      });
+    }
+  }
+
+  return { chars, items, invoices, loot, vendorItems, trainerServices };
 }
 
-export type AddonImportResult = { characters: string[]; items: number; newItems: number; invoices: number; newInvoices: number };
+export type AddonImportResult = {
+  characters: string[];
+  items: number;
+  newItems: number;
+  invoices: number;
+  newInvoices: number;
+  newLoot: number;
+  vendorItems: number;
+  trainerServices: number;
+};
 
 export async function importAddon(db: PrismaClient, userId: string, text: string, bytes: number): Promise<AddonImportResult> {
   const data = readAddonFile(text);
@@ -187,6 +323,41 @@ export async function importAddon(db: PrismaClient, userId: string, text: string
           });
       }
       const items = await tx.itemInfo.createMany({ data: data.items, skipDuplicates: true });
+      // Names: fill them in on item details and on the site-wide item list,
+      // where TSM's files had none (items nobody is listing right now).
+      const named = data.items.filter((i) => i.name);
+      if (named.length) {
+        const ids = named.map((i) => i.id);
+        const names = named.map((i) => i.name!);
+        await tx.$executeRaw`
+          UPDATE "ItemInfo" ii SET name = t.name
+          FROM unnest(${ids}::int[], ${names}::text[]) AS t(id, name)
+          WHERE ii.id = t.id AND ii.name IS NULL`;
+        await tx.$executeRaw`
+          INSERT INTO "Item" ("id", "name", "updatedAt")
+          SELECT id, name, now() FROM unnest(${ids}::int[], ${names}::text[]) AS t(id, name)
+          ON CONFLICT ("id") DO UPDATE SET "name" = EXCLUDED."name", "updatedAt" = now()
+            WHERE "Item"."name" = ''`;
+      }
+      const loot = await tx.lootEvent.createMany({
+        data: data.loot.map((l) => ({ userId, ...l })),
+        skipDuplicates: true,
+      });
+      // Vendors and trainers are game data: the latest sighting wins.
+      for (const v of data.vendorItems) {
+        await tx.vendorItem.upsert({
+          where: { npcId_itemId: { npcId: v.npcId, itemId: v.itemId } },
+          create: v,
+          update: v,
+        });
+      }
+      for (const t of data.trainerServices) {
+        await tx.trainerService.upsert({
+          where: { npcId_name: { npcId: t.npcId, name: t.name } },
+          create: t,
+          update: t,
+        });
+      }
       const invoices = await tx.ahInvoice.createMany({
         data: data.invoices.map((i) => ({ userId, ...i })),
         skipDuplicates: true,
@@ -198,6 +369,9 @@ export async function importAddon(db: PrismaClient, userId: string, text: string
         newItems: items.count,
         invoices: data.invoices.length,
         newInvoices: invoices.count,
+        newLoot: loot.count,
+        vendorItems: data.vendorItems.length,
+        trainerServices: data.trainerServices.length,
       };
     },
     { timeout: 60_000 },

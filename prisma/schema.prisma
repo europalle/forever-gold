@@ -101,6 +101,7 @@ model User {
 
   devices        Device[]
   invoices       AhInvoice[]
+  lootEvents     LootEvent[]
   invitesCreated Invite[] @relation("InvitesCreated")
   inviteUsed     Invite[] @relation("InviteUsed")
 }
@@ -227,6 +228,7 @@ model Device {
 // everyone: they are game data, not personal. TSM's price files have none of this.
 model ItemInfo {
   id         Int      @id
+  name       String?
   quality    Int? // 0 poor, 1 common, 2 uncommon, 3 rare, 4 epic
   itemLevel  Int?
   reqLevel   Int?
@@ -257,4 +259,61 @@ model AhInvoice {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, key])
+}
+
+// What a loot window held, recorded by members' addons: corpse loot,
+// skinning, gathering, fishing and disenchanting. Pooled across the guild for
+// drop rates and disenchant odds.
+model LootEvent {
+  id           Int      @id @default(autoincrement())
+  userId       String
+  key          String // content key, so re-uploads add nothing
+  time         DateTime
+  kind         String // loot, skin, herb, mine, fish, disenchant
+  npcId        Int?
+  npcName      String?
+  npcLevel     Int?
+  mapId        Int?
+  sourceItemId Int? // the item a disenchant used up
+  items        Json // [[itemId, quantity], ...]
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, key])
+  @@index([kind, npcId])
+  @@index([kind, sourceItemId])
+}
+
+// What a vendor sells, as last seen by any member. Game data, shared.
+model VendorItem {
+  npcId      Int
+  itemId     Int
+  vendorName String?
+  mapId      Int?
+  price      Int // copper for `stack` units
+  stack      Int
+  stock      Int? // limited stock, if any
+  extended   Boolean  @default(false) // costs something besides gold
+  seenAt     DateTime
+
+  @@id([npcId, itemId])
+  @@index([itemId])
+}
+
+// What a trainer teaches, as last seen by any member. Game data, shared.
+model TrainerService {
+  npcId       Int
+  name        String
+  trainerName String?
+  mapId       Int?
+  cost        Int?
+  skill       String?
+  skillLevel  Int?
+  levelReq    Int?
+  itemId      Int?
+  category    String?
+  seenAt      DateTime
+
+  @@id([npcId, name])
+  @@index([itemId])
 }

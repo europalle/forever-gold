@@ -71,3 +71,54 @@ local function ser(v, ind)
   else return tostring(v) end
 end
 TEST_SAVED = "\nForeverGoldDB = " .. ser(ForeverGoldDB) .. "\n"
+
+-- Collector: skinning a corpse.
+TEST_LOOT = { { 4234, 2 }, { 249427, 1 } }
+TEST_LOOT_GUID = "Creature-0-1-0-1-2959-0000"
+TEST_TARGET(TEST_LOOT_GUID)
+FireEvent("UNIT_SPELLCAST_START", "player", "cast1", 8613)
+TEST_TICK(2)
+FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "cast1", 8613)
+FireEvent("LOOT_OPENED")
+local e = ForeverGoldDB.loot[#ForeverGoldDB.loot]
+check(e.k == "skin" and e.npc == 2959 and e.nm == "Bubbi Hunter" and e.lvl == 34 and e.m == 1426 and e.i[2][1] == 249427, "skinning recorded with mob, level, zone, Pristine Leather")
+
+-- Plain loot, window opened twice: recorded once.
+TEST_TICK(30)
+TEST_LOOT = { { 2589, 3 } }
+TEST_LOOT_GUID = "Creature-0-1-0-1-1150-0001"
+local before = #ForeverGoldDB.loot
+FireEvent("LOOT_OPENED"); FireEvent("LOOT_OPENED")
+check(#ForeverGoldDB.loot == before + 1 and ForeverGoldDB.loot[#ForeverGoldDB.loot].k == "loot", "corpse loot recorded once")
+
+-- Disenchant: the green that leaves the bags is the source.
+local bag1 = C_Container.GetContainerItemInfo
+local hasGreen = true
+C_Container.GetContainerItemInfo = function(bag, slot)
+  if bag == 2 and slot == 1 and hasGreen then return { itemID = 6602, stackCount = 1, quality = 2 } end
+  return bag1(bag, slot)
+end
+local slots = C_Container.GetContainerNumSlots
+C_Container.GetContainerNumSlots = function(bag) if bag == 2 then return 1 end return slots(bag) end
+FireEvent("UNIT_SPELLCAST_START", "player", "cast2", 13262)
+hasGreen = false
+TEST_TICK(3)
+FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "cast2", 13262)
+TEST_LOOT = { { 11083, 3 } }
+TEST_LOOT_GUID = nil
+FireEvent("LOOT_OPENED")
+e = ForeverGoldDB.loot[#ForeverGoldDB.loot]
+check(e.k == "disenchant" and e.src == 6602 and e.i[1][1] == 11083 and e.i[1][2] == 3, "disenchant recorded with its source item")
+
+-- Vendor and trainer.
+TEST_NPC_GUID = "Creature-0-1-0-1-1465-0002"
+FireEvent("MERCHANT_SHOW")
+local v = ForeverGoldDB.vendors[1465]
+check(v and v.name == "Test Vendor" and v.items[4289].p == 50 and v.items[4289].q == 5 and v.items[2321].n == 3, "vendor prices recorded")
+TEST_NPC_GUID = "Creature-0-1-0-1-1385-0003"
+FireEvent("TRAINER_SHOW")
+local tr = ForeverGoldDB.trainers[1385]
+check(tr and #tr.services == 2 and tr.services[2].s == 150 and tr.services[2].c == 2000 and tr.services[2].item == 4236, "trainer services recorded")
+check(ForeverGoldDB.items[4232].n == "Item4232", "item lookups keep the name")
+print("collector: " .. #ForeverGoldDB.loot .. " loot events, vendor and trainer recorded")
+TEST_SAVED = "\nForeverGoldDB = " .. ser(ForeverGoldDB) .. "\n"

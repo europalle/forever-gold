@@ -179,7 +179,7 @@ local function readRecipes()
   local out = {}
   for _, id in ipairs(FG.try(C_TradeSkillUI.GetAllRecipeIDs) or {}) do
     local info = FG.try(C_TradeSkillUI.GetRecipeInfo, id)
-    if info and info.learned then
+    if info then
       local s = FG.try(C_TradeSkillUI.GetRecipeSchematic, id, false)
       if s then
         local reag = {}
@@ -188,7 +188,8 @@ local function readRecipes()
           if r and r.itemID then table.insert(reag, { r.itemID, slot.quantityRequired or 1 }) end
         end
         local cd = FG.try(C_TradeSkillUI.GetRecipeCooldown, id)
-        out[id] = { name = info.name, out = s.outputItemID, qty = s.quantityMin, reag = reag, cd = (cd and cd > 0) and math.floor(cd) or nil }
+        out[id] = { name = info.name, out = s.outputItemID, qty = s.quantityMin, reag = reag, cd = (cd and cd > 0) and math.floor(cd) or nil, l = info.learned and 1 or 0 }
+        if s.outputItemID and FG.queueItem then FG.queueItem(s.outputItemID) end
       end
     end
   end

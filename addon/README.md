@@ -9,6 +9,8 @@ What it does:
 - Auction house panel (docks to the right of the auction house; `/fg` opens it anywhere): Sell, Make, Buy, Hold. Clicking a row fills the auction house search box and runs that one search.
 - Records, into `WTF\Account\<account>\SavedVariables\ForeverGold.lua`: each character's level, gold and professions (gathering included), item counts in bags, bank and mail, your auctions, sale mails (the real cut and deposit), known recipes with reagents, and item details (level, type, quality) for items the site asks about.
 
+- From 0.2.0 it also records game data for the guild's Research page: every loot window (corpse loot, skinning, herbs, ore, fishing, disenchanting) with the mob, its level and zone, and for disenchants the item used up; what vendors sell and for how much; what trainers teach and charge; and all recipes in an open profession window, learned or not. Item lookups keep the name.
+
 It never posts, buys, cancels, sends mail, crafts or moves items.
 
 In game: a minimap button (left click: panel, right click: settings, drag to move) and a settings page under Esc, Options, AddOns, Forever Gold. Commands: `/fg` (panel), `/fg options`, `/fg status` (what the addon sees: advice age, prices, recorded bags and professions), `/fg tooltip`, `/fg chat`, `/fg debug`.
