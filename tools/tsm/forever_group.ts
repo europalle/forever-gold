@@ -1,24 +1,31 @@
 // Adds a "Forever Gold" group to the BilisClassicForever profile and moves the
 // leather, hides, cloth and enchanting materials into it, with operations that
-// price from this auction house only (no EU-wide averages).
+// price from this auction house only (no EU-wide averages). Meat and fish get
+// their own subgroup that keeps KEEP of each on the character (pet food).
 //
 //   npx tsx tools/tsm/forever_group.ts TradeSkillMaster.lua ForeverGold.lua OUT.lua
 //
 // Items are chosen by type from the Forever Gold addon's saved file (trade goods,
-// subclass Leather 6, Cloth 5, Enchanting 12). Everything else in the profile is
-// left as it is. Refuses to write if the file does not look as expected.
+// subclass Leather 6, Cloth 5, Enchanting 12, Cooking 8), and only those Bilis
+// already files under Trade Goods (so oils and other consumables stay put).
+// Everything else in the profile is left as it is. Refuses to write if the file does not look as expected.
 
 import { readFileSync, writeFileSync } from "node:fs";
 import { parseSavedVariables } from "../../src/lib/lua-table";
 
 const PROFILE = "BilisClassicForever(v1.0.1)";
 const TOP = "Forever Gold";
+const KEEP = 20;
+const MEAT = `Meat and fish (keep ${KEEP})`;
 const SUBGROUPS: [number, string][] = [
   [6, "Leather and hides"],
   [5, "Cloth"],
   [12, "Enchanting"],
+  [8, MEAT],
 ];
 const POST = "FG Post";
+const POST_KEEP = "FG Post Keep";
+const MAIL_KEEP = "FG Mail Keep";
 const BUY = "FG Buy Dips";
 
 const [tsmPath, fgPath, outPath] = process.argv.slice(2);
@@ -34,11 +41,21 @@ const abort = (msg: string): never => {
 // ---- choose the items ----
 const fg = parseSavedVariables(readFileSync(fgPath, "utf8")).ForeverGoldDB as Record<string, Record<string, Record<string, unknown>>>;
 if (!fg?.items) abort("no item details in the Forever Gold file.");
+const before = parseSavedVariables(readFileSync(tsmPath, "utf8")).TradeSkillMasterDB as Record<string, Record<string, string>>;
+const beforeItems = before?.[`p@${PROFILE}@userData@items`];
+if (!beforeItems) abort("no BilisClassicForever item list in the TSM file.");
 const chosen = new Map<number, string>(); // item id -> subgroup
+const skipped: string[] = [];
 for (const [id, info] of Object.entries(fg.items)) {
   if (info.c !== 7) continue;
   const sub = SUBGROUPS.find(([s]) => s === info.s);
-  if (sub) chosen.set(Number(id), sub[1]);
+  if (!sub) continue;
+  const path = beforeItems[`i:${id}`];
+  if (path && !path.includes("`Trade Goods")) {
+    skipped.push(`${info.n ?? id} (${path.split("`").slice(1, -1).join(" > ")})`);
+    continue;
+  }
+  chosen.set(Number(id), sub[1]);
 }
 if (chosen.size < 20) abort(`only ${chosen.size} items found; expected the addon to have looked up more.`);
 
@@ -80,14 +97,15 @@ const opTable = (name: string) => {
   return abort(`no ${name} operations.`);
 };
 
-const groupBlock = (path: string, mail: boolean, top: boolean) => [
+const groupBlock = (path: string, mail: boolean, top: boolean, keep = false) => [
   `["${path}"] = {`,
   `["Shopping"] = {`, `"${BUY}",`, `["override"] = true,`, `},`,
   `["Warehousing"] = {`, `},`,
-  `["Auctioning"] = {`, `"${POST}",`, `["override"] = true,`, `},`,
+  `["Auctioning"] = {`, `"${keep ? POST_KEEP : POST}",`, `["override"] = true,`, `},`,
   `["Crafting"] = {`, `"Crafting",`, ...(top ? [`["override"] = true,`] : []), `},`,
-  `["Mailing"] = {`, ...(mail ? [`"Default Mail",`] : []), `["override"] = true,`, `},`,
-  `["Vendoring"] = {`, `"Vendoring",`, ...(top ? [`["override"] = true,`] : []), `},`,
+  `["Mailing"] = {`, ...(mail ? [`"${keep ? MAIL_KEEP : "Default Mail"}",`] : []), `["override"] = true,`, `},`,
+  // The keep group is never sold to a vendor by TSM's vendor button.
+  `["Vendoring"] = {`, ...(keep ? [] : [`"Vendoring",`]), ...(top || keep ? [`["override"] = true,`] : []), `},`,
   `["Sniper"] = {`, `"Stackable",`, ...(top ? [`["override"] = true,`] : []), `},`,
   `},`,
 ];
@@ -116,6 +134,22 @@ const postOp = [
   `["cancelRepostThreshold"] = "10s",`,
   `},`,
 ];
+// Same as FG Post, but leaves KEEP of each item in your bags.
+const postKeepOp = postOp.map((l, i) => (i === 0 ? `["${POST_KEEP}"] = {` : l === `["keepQuantity"] = "0",` ? `["keepQuantity"] = "${KEEP}",` : l));
+// The usual mail rule to the bank alt, keeping KEEP of each.
+const mailKeepOp = [
+  `["${MAIL_KEEP}"] = {`,
+  `["ignoreFactionrealm"] = {`, `},`,
+  `["restock"] = false,`,
+  `["maxQtyEnabled"] = false,`,
+  `["relationships"] = {`, `},`,
+  `["keepQty"] = "${KEEP}",`,
+  "TARGET",
+  `["ignorePlayer"] = {`, `},`,
+  `["restockSources"] = {`, `["guild"] = false,`, `["bank"] = false,`, `},`,
+  `["maxQty"] = "10",`,
+  `},`,
+];
 const buyOp = [
   `["${BUY}"] = {`,
   `["ignoreFactionrealm"] = {`, `},`,
@@ -127,6 +161,12 @@ const buyOp = [
   `["showAboveMaxPrice"] = false,`,
   `},`,
 ];
+
+// The mail target: whoever the profile's Default Mail sends to.
+const mailAt = opTable("Mailing");
+const targetLine = lines.slice(mailAt, closeOf(mailAt)).find((l) => l.startsWith(`["target"] = `));
+if (!targetLine) abort("Default Mail has no target.");
+mailKeepOp[mailKeepOp.indexOf("TARGET")] = targetLine!;
 
 // Item lines: move the chosen ones, add those the profile did not have.
 const itemsEnd = closeOf(itemsAt);
@@ -148,8 +188,9 @@ const added = [...chosen.entries()].filter(([id]) => !seen.has(id)).map(([id, su
 // Insert from the bottom of the file up, so earlier line numbers stay right.
 const inserts: [number, string[]][] = [
   [closeOf(opTable("Shopping")), buyOp],
-  [closeOf(opTable("Auctioning")), postOp],
-  [closeOf(groupsAt), [groupBlock(TOP, false, true), ...SUBGROUPS.map(([, sub]) => groupBlock(`${TOP}\`${sub}`, true, false))].flat()],
+  [closeOf(opTable("Auctioning")), [...postOp, ...postKeepOp]],
+  [closeOf(mailAt), mailKeepOp],
+  [closeOf(groupsAt), [groupBlock(TOP, false, true), ...SUBGROUPS.map(([, sub]) => groupBlock(`${TOP}\`${sub}`, true, false, sub === MEAT))].flat()],
   [itemsEnd, added],
 ];
 inserts.sort((a, b) => b[0] - a[0]);
@@ -163,6 +204,7 @@ const items = out[`p@${PROFILE}@userData@items`] as Record<string, string>;
 const groups = out[`p@${PROFILE}@userData@groups`] as Record<string, unknown>;
 const ops = out[`p@${PROFILE}@userData@operations`] as Record<string, Record<string, unknown>>;
 const inGroup = Object.values(items).filter((g) => g.startsWith(TOP)).length;
-if (inGroup !== chosen.size || !groups[TOP] || !ops.Auctioning[POST] || !ops.Shopping[BUY]) abort("the written file does not check out.");
+if (inGroup !== chosen.size || !groups[TOP] || !ops.Auctioning[POST] || !ops.Auctioning[POST_KEEP] || !ops.Mailing[MAIL_KEEP] || !ops.Shopping[BUY]) abort("the written file does not check out.");
 const per = SUBGROUPS.map(([, sub]) => `${sub} ${Object.values(items).filter((g) => g === `${TOP}\`${sub}`).length}`).join(", ");
+if (skipped.length) console.log(`Left in Bilis (not filed under Trade Goods there): ${skipped.join("; ")}`);
 console.log(`Wrote ${outPath}: ${chosen.size} items in "${TOP}" (${per}); ${moved} moved from Bilis groups, ${added.length} added. ${Object.keys(items).length} items in the profile.`);
