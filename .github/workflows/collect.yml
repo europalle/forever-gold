@@ -1,12 +1,13 @@
-# Fetch the TSM price files every 2 hours and store any new scan. TSM
-# republishes about every 3 hours; every 2 keeps a private repo well inside
-# GitHub's 2,000 free Actions minutes a month.
+# Backup collector. cron-job.org calls /api/cron/collect every hour (see
+# docs/setup.md); this catches anything it misses. GitHub can start scheduled
+# runs late or skip them, so it is not the main scheduler. Every 6 hours keeps
+# a private repo far inside the 2,000 free Actions minutes a month.
 # Needs the repository secret DATABASE_URL. Until it is set, the job skips.
 name: Collect prices
 
 on:
   schedule:
-    - cron: "17 */2 * * *"
+    - cron: "47 */6 * * *"
   workflow_dispatch:
 
 jobs:

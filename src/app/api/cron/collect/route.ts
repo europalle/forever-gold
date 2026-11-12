@@ -1,8 +1,11 @@
 import { collectAll } from "@/lib/collector";
 import { db } from "@/lib/db";
 
-// Called by a scheduler with "Authorization: Bearer <CRON_SECRET>".
-// Vercel Cron sends that header itself when CRON_SECRET is set.
+// Called by a scheduler with "Authorization: Bearer <CRON_SECRET>": cron-job.org
+// every hour (see docs/setup.md), GitHub Actions as a backup. Each scan is stored
+// once, so overlapping calls are harmless. A run takes about 2 seconds.
+export const maxDuration = 60;
+
 export async function GET(request: Request) {
   const secret = process.env.CRON_SECRET;
   if (!secret || request.headers.get("authorization") !== `Bearer ${secret}`) {
