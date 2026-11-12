@@ -3,11 +3,11 @@
 // It uploads ForeverGold.lua and TradeSkillMaster.lua from WoW's SavedVariables
 // when the game writes them (logout or /reload), and writes the advice file
 // into the addon folder every few minutes. It reads and writes only those
-// files and never touches the game process.
+// files and never touches the game process. Its window is a small page served
+// on 127.0.0.1 and opened in the browser (see ui.go).
 package main
 
 import (
-	"bufio"
 	"bytes"
 	"compress/gzip"
 	"crypto/sha256"
@@ -21,12 +21,14 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 )
 
-const version = "0.1.0"
+const version = "0.2.0"
 
 const defaultServer = "https://forevergold.paro.fyi"
 
@@ -41,11 +43,35 @@ type State struct {
 	AdviceETag string            `json:"adviceETag"`
 }
 
+// Activity is one line of the log shown on the page.
+type Activity struct {
+	At   time.Time `json:"at"`
+	Text string    `json:"text"`
+	Bad  bool      `json:"bad"`
+}
+
+// App holds everything the sync loop and the page share.
+type App struct {
+	mu        sync.Mutex
+	dir       string
+	cfg       Config
+	st        *State
+	user      string // who the pairing code belongs to, once checked
+	pairErr   string
+	log       []Activity
+	lastSync  time.Time
+	lastAdv   time.Time
+	uploads   map[string]Activity // file kind -> last upload
+	syncNow   chan struct{}
+	logWriter io.Writer
+}
+
 var (
-	flagPair   = flag.Bool("pair", false, "enter a new pairing code")
-	flagOnce   = flag.Bool("once", false, "sync once and exit")
-	flagServer = flag.String("server", "", "server address (default "+defaultServer+")")
-	flagWow    = flag.String("wow", "", "path to World of Warcraft or its _forever_ folder")
+	flagOnce       = flag.Bool("once", false, "sync once and exit (no window)")
+	flagServer     = flag.String("server", "", "server address (default "+defaultServer+")")
+	flagWow        = flag.String("wow", "", "path to World of Warcraft or its _forever_ folder")
+	flagBackground = flag.Bool("background", false, "start without opening the window (used when starting with Windows)")
+	flagNoBrowser  = flag.Bool("no-browser", false, "never open the browser")
 )
 
 func main() {
@@ -53,89 +79,141 @@ func main() {
 	dir := appDir()
 	_ = os.MkdirAll(dir, 0o700)
 	logFile, _ := os.OpenFile(filepath.Join(dir, "helper.log"), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
+	var w io.Writer = os.Stdout
 	if logFile != nil {
-		log.SetOutput(io.MultiWriter(os.Stdout, logFile))
+		w = io.MultiWriter(os.Stdout, logFile)
 	}
+	log.SetOutput(w)
 	log.SetFlags(log.Ldate | log.Ltime)
-	fmt.Printf("Forever Gold helper %s. Close this window to stop.\n\n", version)
 
-	cfg := loadConfig(dir)
+	app := &App{dir: dir, cfg: loadConfig(dir), st: loadState(dir), uploads: map[string]Activity{}, syncNow: make(chan struct{}, 1), logWriter: w}
 	if *flagServer != "" {
-		cfg.Server = strings.TrimRight(*flagServer, "/")
+		app.cfg.Server = strings.TrimRight(*flagServer, "/")
 	}
-	if cfg.Server == "" {
-		cfg.Server = defaultServer
+	if app.cfg.Server == "" {
+		app.cfg.Server = defaultServer
 	}
-	in := bufio.NewReader(os.Stdin)
-
 	if t := os.Getenv("FG_TOKEN"); t != "" {
-		cfg.Token = t
+		app.cfg.Token = t
 	}
-	if cfg.Token == "" || *flagPair {
-		cfg.Token = ask(in, "Paste your pairing code (Account page on the website, \"Make a pairing code\"): ")
+	if *flagWow != "" {
+		app.cfg.WowDir = foreverDir(*flagWow)
 	}
-	for {
-		user, err := hello(cfg)
-		if err == nil {
-			log.Printf("Paired as %s with %s.", user, cfg.Server)
-			break
-		}
-		log.Printf("Could not pair: %v", err)
-		if os.Getenv("FG_TOKEN") != "" || *flagOnce {
+	if app.cfg.WowDir == "" || !isDir(app.cfg.WowDir) {
+		app.cfg.WowDir = findWow()
+	}
+	app.note(false, "Forever Gold helper %s started.", version)
+
+	if *flagOnce {
+		if err := app.checkPairing(); err != nil {
+			log.Printf("Could not pair: %v", err)
 			os.Exit(1)
 		}
-		cfg.Token = ask(in, "Paste a new pairing code: ")
-	}
-
-	if *flagWow != "" {
-		cfg.WowDir = foreverDir(*flagWow)
-	}
-	if cfg.WowDir == "" || !isDir(cfg.WowDir) {
-		cfg.WowDir = findWow()
-	}
-	for cfg.WowDir == "" {
-		p := ask(in, "Where is World of Warcraft installed? (the folder that holds _forever_): ")
-		cfg.WowDir = foreverDir(p)
-		if cfg.WowDir == "" {
-			fmt.Println("No _forever_ folder there. Try again.")
-		}
-	}
-	log.Printf("WoW Forever folder: %s", cfg.WowDir)
-	saveConfig(dir, cfg)
-
-	addonDir := filepath.Join(cfg.WowDir, "Interface", "AddOns", "ForeverGold")
-	if !isDir(addonDir) {
-		log.Printf("The Forever Gold addon is not installed yet: put the ForeverGold folder in %s", filepath.Dir(addonDir))
-	}
-
-	st := loadState(dir)
-	syncOnce(cfg, st, addonDir, true)
-	saveState(dir, st)
-	if *flagOnce {
+		app.syncOnce(true)
 		return
 	}
-	log.Printf("Watching for saves. Advice refreshes every 5 minutes.")
-	lastAdvice := time.Now()
+
+	// One copy at a time: if the page's port is taken, the helper is already
+	// running, so just show its window.
+	ui, err := startUI(app)
+	if err != nil {
+		openBrowser(uiURL())
+		return
+	}
+	if !*flagBackground && !*flagNoBrowser {
+		openBrowser(ui)
+	}
+	if app.cfg.Token != "" {
+		_ = app.checkPairing()
+	}
+	app.save()
+	app.loop()
+}
+
+func (a *App) loop() {
+	tick := time.NewTicker(10 * time.Second)
+	defer tick.Stop()
 	for {
-		time.Sleep(10 * time.Second)
-		due := time.Since(lastAdvice) >= 5*time.Minute
-		syncOnce(cfg, st, addonDir, due)
-		if due {
-			lastAdvice = time.Now()
+		a.mu.Lock()
+		due := time.Since(a.lastAdv) >= 5*time.Minute
+		a.mu.Unlock()
+		a.syncOnce(due)
+		select {
+		case <-tick.C:
+		case <-a.syncNow:
+			a.mu.Lock()
+			a.lastAdv = time.Time{} // a manual sync also refreshes the advice
+			a.mu.Unlock()
 		}
-		saveState(dir, st)
 	}
 }
 
-func syncOnce(cfg Config, st *State, addonDir string, fetchAdvice bool) {
+func (a *App) note(bad bool, format string, args ...any) {
+	text := fmt.Sprintf(format, args...)
+	log.Print(text)
+	a.mu.Lock()
+	a.log = append(a.log, Activity{At: time.Now(), Text: text, Bad: bad})
+	if len(a.log) > 200 {
+		a.log = a.log[len(a.log)-200:]
+	}
+	a.mu.Unlock()
+}
+
+func (a *App) snapshot() (Config, string) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.cfg, a.user
+}
+
+func (a *App) save() {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	saveConfig(a.dir, a.cfg)
+	saveState(a.dir, a.st)
+}
+
+func (a *App) checkPairing() error {
+	cfg, _ := a.snapshot()
+	if cfg.Token == "" {
+		return errors.New("no pairing code yet")
+	}
+	user, err := hello(cfg)
+	a.mu.Lock()
+	if err != nil {
+		a.user, a.pairErr = "", err.Error()
+	} else {
+		a.user, a.pairErr = user, ""
+	}
+	a.mu.Unlock()
+	if err != nil {
+		a.note(true, "Pairing failed: %v", err)
+		return err
+	}
+	a.note(false, "Paired as %s with %s.", user, cfg.Server)
+	return nil
+}
+
+func (a *App) syncOnce(fetchAdvice bool) {
+	cfg, user := a.snapshot()
+	if user == "" || cfg.WowDir == "" {
+		return
+	}
 	for _, f := range savedFiles(cfg.WowDir) {
-		uploadIfChanged(cfg, st, f.path, f.kind)
+		a.uploadIfChanged(cfg, f.path, f.kind)
 	}
+	addonDir := filepath.Join(cfg.WowDir, "Interface", "AddOns", "ForeverGold")
 	if fetchAdvice && isDir(addonDir) {
-		if err := fetchAdviceFile(cfg, st, addonDir); err != nil {
-			log.Printf("Advice: %v", err)
+		if err := a.fetchAdviceFile(cfg, addonDir); err != nil {
+			a.note(true, "Advice: %v", err)
 		}
+		a.mu.Lock()
+		a.lastAdv = time.Now()
+		a.mu.Unlock()
 	}
+	a.mu.Lock()
+	a.lastSync = time.Now()
+	a.mu.Unlock()
+	a.save()
 }
 
 type savedFile struct{ path, kind string }
@@ -145,22 +223,21 @@ type savedFile struct{ path, kind string }
 func savedFiles(wowDir string) []savedFile {
 	var out []savedFile
 	accounts, _ := os.ReadDir(filepath.Join(wowDir, "WTF", "Account"))
-	for _, a := range accounts {
-		if !a.IsDir() {
+	for _, acc := range accounts {
+		if !acc.IsDir() {
 			continue
 		}
-		sv := filepath.Join(wowDir, "WTF", "Account", a.Name(), "SavedVariables")
-		for name, kind := range map[string]string{"ForeverGold.lua": "addon", "TradeSkillMaster.lua": "tsm"} {
-			p := filepath.Join(sv, name)
-			if fi, err := os.Stat(p); err == nil && !fi.IsDir() {
-				out = append(out, savedFile{p, kind})
+		sv := filepath.Join(wowDir, "WTF", "Account", acc.Name(), "SavedVariables")
+		for _, f := range []savedFile{{filepath.Join(sv, "ForeverGold.lua"), "addon"}, {filepath.Join(sv, "TradeSkillMaster.lua"), "tsm"}} {
+			if fi, err := os.Stat(f.path); err == nil && !fi.IsDir() {
+				out = append(out, f)
 			}
 		}
 	}
 	return out
 }
 
-func uploadIfChanged(cfg Config, st *State, path, kind string) {
+func (a *App) uploadIfChanged(cfg Config, path, kind string) {
 	fi, err := os.Stat(path)
 	if err != nil {
 		return
@@ -176,13 +253,16 @@ func uploadIfChanged(cfg Config, st *State, path, kind string) {
 	}
 	sum := sha256.Sum256(data)
 	h := hex.EncodeToString(sum[:])
-	if st.Uploaded[path] == h {
+	a.mu.Lock()
+	same := a.st.Uploaded[path] == h
+	a.mu.Unlock()
+	if same {
 		return
 	}
 	var gz bytes.Buffer
-	w := gzip.NewWriter(&gz)
-	_, _ = w.Write(data)
-	_ = w.Close()
+	zw := gzip.NewWriter(&gz)
+	_, _ = zw.Write(data)
+	_ = zw.Close()
 	req, _ := http.NewRequest("POST", cfg.Server+"/api/sync/upload?file="+kind, &gz)
 	req.Header.Set("Authorization", "Bearer "+cfg.Token)
 	req.Header.Set("X-FG-Encoding", "gzip")
@@ -190,27 +270,36 @@ func uploadIfChanged(cfg Config, st *State, path, kind string) {
 	req.Header.Set("User-Agent", "forevergold-helper/"+version)
 	body, status, _, err := do(req)
 	if err != nil {
-		log.Printf("Upload of %s failed, will retry: %v", filepath.Base(path), err)
+		a.note(true, "Upload of %s failed, will retry: %v", filepath.Base(path), err)
 		return
 	}
 	if status != 200 {
-		log.Printf("Upload of %s refused (%d): %s", filepath.Base(path), status, msg(body))
+		a.note(true, "Upload of %s refused (%d): %s", filepath.Base(path), status, msg(body))
 		if status == 400 {
-			st.Uploaded[path] = h // a file the server cannot read: do not resend it every 10 seconds
+			a.mu.Lock()
+			a.st.Uploaded[path] = h // a file the server cannot read: do not resend it every 10 seconds
+			a.mu.Unlock()
 		}
 		return
 	}
-	st.Uploaded[path] = h
-	log.Printf("Uploaded %s (%s): %s", filepath.Base(path), account(path), summary(kind, body))
+	text := fmt.Sprintf("Uploaded %s (%s): %s", filepath.Base(path), account(path), summary(kind, body))
+	a.note(false, "%s", text)
+	a.mu.Lock()
+	a.st.Uploaded[path] = h
+	a.uploads[kind] = Activity{At: time.Now(), Text: summary(kind, body)}
+	a.mu.Unlock()
 }
 
-func fetchAdviceFile(cfg Config, st *State, addonDir string) error {
+func (a *App) fetchAdviceFile(cfg Config, addonDir string) error {
 	req, _ := http.NewRequest("GET", cfg.Server+"/api/sync/advice", nil)
 	req.Header.Set("Authorization", "Bearer "+cfg.Token)
 	req.Header.Set("User-Agent", "forevergold-helper/"+version)
 	target := filepath.Join(addonDir, "ForeverGold_Data.lua")
-	if st.AdviceETag != "" && exists(target) {
-		req.Header.Set("If-None-Match", st.AdviceETag)
+	a.mu.Lock()
+	etag := a.st.AdviceETag
+	a.mu.Unlock()
+	if etag != "" && exists(target) {
+		req.Header.Set("If-None-Match", etag)
 	}
 	body, status, hdr, err := do(req)
 	if err != nil {
@@ -233,8 +322,11 @@ func fetchAdviceFile(cfg Config, st *State, addonDir string) error {
 	if err := os.Rename(tmp, target); err != nil {
 		return err
 	}
-	st.AdviceETag = hdr.Get("ETag")
-	log.Printf("New advice written (%d KB). It shows in game after /reload or your next login.", len(body)/1024)
+	a.mu.Lock()
+	a.st.AdviceETag = hdr.Get("ETag")
+	a.uploads["advice"] = Activity{At: time.Now(), Text: fmt.Sprintf("%d KB", len(body)/1024)}
+	a.mu.Unlock()
+	a.note(false, "New advice written (%d KB). It shows in game after /reload or your next login.", len(body)/1024)
 	return nil
 }
 
@@ -287,13 +379,27 @@ func summary(kind string, body []byte) string {
 		Characters  []string
 		NewItems    int
 		NewInvoices int
+		NewLoot     int
 	}
 	_ = json.Unmarshal(body, &r)
-	return fmt.Sprintf("%s; %d new item details, %d new sale mails", strings.Join(r.Characters, ", "), r.NewItems, r.NewInvoices)
+	return fmt.Sprintf("%s; %d new item details, %d new sale mails, %d new loot windows", strings.Join(r.Characters, ", "), r.NewItems, r.NewInvoices, r.NewLoot)
 }
 
 func account(path string) string {
 	return filepath.Base(filepath.Dir(filepath.Dir(path)))
+}
+
+// The addon's version, from its TOC, or "" when it is not installed.
+func addonVersion(wowDir string) string {
+	b, err := os.ReadFile(filepath.Join(wowDir, "Interface", "AddOns", "ForeverGold", "ForeverGold.toc"))
+	if err != nil {
+		return ""
+	}
+	m := regexp.MustCompile(`(?m)^## Version:\s*(\S+)`).FindSubmatch(b)
+	if m == nil {
+		return "installed"
+	}
+	return string(m[1])
 }
 
 // --- WoW folder -----------------------------------------------------------
@@ -315,7 +421,7 @@ func foreverDir(p string) string {
 func findWow() string {
 	var candidates []string
 	if runtime.GOOS == "windows" {
-		for _, drive := range []string{"C", "D", "E", "F", "G"} {
+		for _, drive := range []string{"C", "D", "E", "F", "G", "H"} {
 			for _, base := range []string{
 				`:\Program Files (x86)\World of Warcraft`,
 				`:\Program Files\World of Warcraft`,
@@ -377,12 +483,6 @@ func loadState(dir string) *State {
 func saveState(dir string, s *State) {
 	b, _ := json.MarshalIndent(s, "", "  ")
 	_ = os.WriteFile(filepath.Join(dir, "state.json"), b, 0o600)
-}
-
-func ask(in *bufio.Reader, prompt string) string {
-	fmt.Print(prompt)
-	line, _ := in.ReadString('\n')
-	return strings.TrimSpace(line)
 }
 
 func isDir(p string) bool {

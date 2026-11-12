@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Forever Gold helper</title>
+<style>
+  :root {
+    --bg: #0d0d0c; --panel: #151513; --line: #2a2925; --text: #e8e6df; --muted: #8f8c82;
+    --gold: #d8b25a; --good: #8fc46a; --bad: #d9705f; --warn: #d9a75f;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 880px; margin: 0 auto; padding: 28px 16px 48px; }
+  header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 16px; border-bottom: 1px solid var(--line); padding-bottom: 14px; }
+  h1 { margin: 0; font-size: 22px; font-weight: 600; color: var(--gold); }
+  h1 small { font-size: 12px; color: var(--muted); font-weight: 400; margin-left: 6px; }
+  .pill { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--line); }
+  .pill i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+  .ok i { background: var(--good); } .warn i { background: var(--warn); } .err i { background: var(--bad); }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; margin-top: 18px; }
+  section { border: 1px solid var(--line); background: var(--panel); border-radius: 6px; padding: 14px; }
+  h2 { margin: 0 0 8px; font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+  .big { font-size: 16px; word-break: break-all; }
+  .muted { color: var(--muted); } .good { color: var(--good); } .bad { color: var(--bad); } .warn { color: var(--warn); }
+  .row { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+  input[type=text] { flex: 1; min-width: 0; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 4px; padding: 7px 9px; font: inherit; }
+  input[type=text]:focus { outline: none; border-color: var(--gold); }
+  button { font: inherit; border-radius: 4px; padding: 7px 12px; cursor: pointer; border: 1px solid var(--line); background: transparent; color: var(--text); }
+  button:hover { border-color: var(--gold); }
+  button.primary { background: var(--gold); color: var(--bg); border-color: var(--gold); font-weight: 600; }
+  button:disabled { opacity: .55; cursor: default; }
+  .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 16px; }
+  .actions label { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); }
+  .spacer { flex: 1; }
+  dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 0; }
+  dt { color: var(--muted); } dd { margin: 0; }
+  ul.log { list-style: none; margin: 0; padding: 0; max-height: 280px; overflow-y: auto; font-size: 13px; }
+  ul.log li { display: flex; gap: 10px; padding: 4px 0; border-top: 1px solid var(--line); }
+  ul.log li:first-child { border-top: 0; }
+  ul.log time { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .msg { margin-top: 8px; font-size: 13px; min-height: 1em; }
+  a { color: var(--gold); }
+  .wide { grid-column: 1 / -1; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Forever Gold helper <small id="version"></small></h1>
+    <span id="status" class="pill warn"><i></i><span>Starting…</span></span>
+  </header>
+
+  <div class="grid">
+    <section>
+      <h2>Account</h2>
+      <div id="account" class="big muted">…</div>
+      <div id="pairBox">
+        <div class="row">
+          <input type="text" id="code" placeholder="Paste a pairing code (fg_…)" autocomplete="off" spellcheck="false">
+          <button class="primary" id="pair">Pair</button>
+        </div>
+        <div class="muted" style="margin-top:6px;font-size:13px">On the website: Account, Helper program, Make a pairing code.</div>
+      </div>
+      <div id="pairMsg" class="msg"></div>
+    </section>
+
+    <section>
+      <h2>WoW folder</h2>
+      <div id="wow" class="big muted">…</div>
+      <div class="row">
+        <input type="text" id="wowPath" placeholder="e.g. E:\World of Warcraft" autocomplete="off" spellcheck="false">
+        <button id="saveWow">Save</button>
+        <button id="detect">Detect</button>
+      </div>
+      <div id="wowMsg" class="msg"></div>
+    </section>
+
+    <section>
+      <h2>Addon</h2>
+      <div id="addon" class="big muted">…</div>
+      <div id="accounts" class="muted" style="margin-top:6px;font-size:13px"></div>
+    </section>
+
+    <section>
+      <h2>Last activity</h2>
+      <dl>
+        <dt>Addon file</dt><dd id="r-addon" class="muted">not yet</dd>
+        <dt>TSM file</dt><dd id="r-tsm" class="muted">not yet</dd>
+        <dt>Advice</dt><dd id="r-advice" class="muted">not yet</dd>
+        <dt>Last check</dt><dd id="r-sync" class="muted">not yet</dd>
+      </dl>
+    </section>
+
+    <section class="wide">
+      <h2>Activity</h2>
+      <ul class="log" id="log"></ul>
+    </section>
+  </div>
+
+  <div class="actions">
+    <button class="primary" id="sync">Sync now</button>
+    <button id="site">Open the website</button>
+    <label id="startupWrap"><input type="checkbox" id="startup"> Start with Windows</label>
+    <span class="spacer"></span>
+    <button id="quit">Stop the helper</button>
+  </div>
+  <p class="muted" style="font-size:13px;margin-top:14px">
+    The helper uploads ForeverGold.lua and TradeSkillMaster.lua when the game saves them (logout or /reload) and keeps the
+    addon's advice fresh. It never touches the game itself. Closing this tab leaves it running; use Stop to end it.
+  </p>
+</main>
+<script>
+  const key = new URLSearchParams(location.search).get("k") || "";
+  const $ = (id) => document.getElementById(id);
+  let state = null;
+
+  async function call(path, body) {
+    const res = await fetch(path, {
+      method: body === undefined ? "GET" : "POST",
+      headers: { "X-FG-Key": key, "Content-Type": "application/json" },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error(res.status === 403 ? "This page is out of date: start the helper again." : "The helper did not answer.");
+    return res.json();
+  }
+
+  function ago(t) {
+    if (!t) return "not yet";
+    const s = Math.max(0, (Date.now() - new Date(t).getTime()) / 1000);
+    if (s < 60) return "just now";
+    if (s < 3600) return Math.round(s / 60) + " min ago";
+    if (s < 86400) return Math.round(s / 3600) + " h ago";
+    return Math.round(s / 86400) + " days ago";
+  }
+  const clock = (t) => new Date(t).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+
+  function setStatus(kind, text) {
+    const el = $("status");
+    el.className = "pill " + kind;
+    el.querySelector("span").textContent = text;
+  }
+
+  function render(s) {
+    state = s;
+    $("version").textContent = s.version;
+    const acc = $("account");
+    if (s.user) {
+      acc.textContent = "Paired as " + s.user;
+      acc.className = "big good";
+      $("pairBox").style.display = "none";
+    } else {
+      acc.textContent = s.pairError ? "Not paired: " + s.pairError : "Not paired yet";
+      acc.className = "big " + (s.pairError ? "bad" : "warn");
+      $("pairBox").style.display = "";
+    }
+    const wow = $("wow");
+    wow.textContent = s.wowDir || "Not found";
+    wow.className = "big " + (s.wowDir ? "" : "warn");
+    const addon = $("addon");
+    if (!s.wowDir) { addon.textContent = "Pick the WoW folder first"; addon.className = "big muted"; }
+    else if (s.addonVersion) { addon.textContent = "Installed, version " + s.addonVersion; addon.className = "big good"; }
+    else { addon.textContent = "Not installed"; addon.className = "big warn"; }
+    $("accounts").textContent = s.accounts && s.accounts.length ? "Saved files found for: " + s.accounts.join(", ") : (s.wowDir ? "No saved files yet: log in to WoW once with the addon." : "");
+    for (const k of ["addon", "tsm", "advice"]) {
+      const r = s.recent[k];
+      const el = $("r-" + k);
+      el.textContent = r ? ago(r.at) + (r.text ? " · " + r.text : "") : "not yet";
+      el.className = r ? "" : "muted";
+    }
+    $("r-sync").textContent = ago(s.lastSync);
+    const log = $("log");
+    log.replaceChildren(...(s.log || []).map((a) => {
+      const li = document.createElement("li");
+      const t = document.createElement("time"); t.textContent = clock(a.at);
+      const span = document.createElement("span"); span.textContent = a.text; if (a.bad) span.className = "bad";
+      li.append(t, span);
+      return li;
+    }));
+    $("startupWrap").style.display = s.startupSupported ? "" : "none";
+    $("startup").checked = !!s.startup;
+    if (!s.user) setStatus("warn", "Needs a pairing code");
+    else if (!s.wowDir) setStatus("warn", "Pick your WoW folder");
+    else if (!s.addonVersion) setStatus("warn", "Install the addon");
+    else setStatus("ok", "Running");
+  }
+
+  async function refresh() {
+    try { render(await call("/api/state")); }
+    catch (e) { setStatus("err", e.message); }
+  }
+
+  async function act(btn, path, body, msgEl, after) {
+    btn.disabled = true;
+    try {
+      const r = await call(path, body);
+      if (msgEl) { msgEl.textContent = r.error || r.ok || ""; msgEl.className = "msg " + (r.error ? "bad" : "good"); }
+      if (!r.error && after) after(r);
+    } catch (e) {
+      if (msgEl) { msgEl.textContent = e.message; msgEl.className = "msg bad"; }
+    } finally {
+      btn.disabled = false;
+      refresh();
+    }
+  }
+
+  $("pair").onclick = () => act($("pair"), "/api/pair", { code: $("code").value }, $("pairMsg"), () => { $("code").value = ""; });
+  $("code").onkeydown = (e) => { if (e.key === "Enter") $("pair").click(); };
+  $("saveWow").onclick = () => act($("saveWow"), "/api/wow", { path: $("wowPath").value }, $("wowMsg"), () => { $("wowPath").value = ""; });
+  $("detect").onclick = () => act($("detect"), "/api/wow", { detect: true }, $("wowMsg"));
+  $("sync").onclick = () => act($("sync"), "/api/sync", {}, null);
+  $("site").onclick = () => { if (state) window.open(state.server + "/account", "_blank", "noopener"); };
+  $("startup").onchange = (e) => act(e.target, "/api/startup", { on: e.target.checked }, null);
+  $("quit").onclick = async () => {
+    if (!confirm("Stop the helper? Uploads and advice stop until you start it again.")) return;
+    await call("/api/quit", {}).catch(() => {});
+    setStatus("err", "Stopped. Start ForeverGoldHelper.exe to run it again.");
+    document.querySelectorAll("button, input").forEach((el) => (el.disabled = true));
+  };
+
+  refresh();
+  setInterval(refresh, 2000);
+</script>
+</body>
+</html>

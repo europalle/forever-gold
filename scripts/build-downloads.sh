@@ -5,7 +5,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 mkdir -p downloads
-(cd helper && GOOS=windows GOARCH=amd64 go build -trimpath -ldflags "-s -w" -o ../downloads/ForeverGoldHelper.exe .)
+(cd helper && GOOS=windows GOARCH=amd64 go build -trimpath -ldflags "-s -w -H windowsgui" -o ../downloads/ForeverGoldHelper.exe .)
 python3 -I - <<'PY'
 import os, zipfile
 out = "downloads/ForeverGold-addon.zip"
