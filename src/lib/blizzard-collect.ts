@@ -2,7 +2,7 @@ import type { PrismaClient } from "@/generated/prisma/client";
 import { MARKET } from "@/config/player";
 import { decideBuyoutPerUnit, depthFrom, matchScore } from "./blizzard-depth";
 import { blizzardConfigured, commodities, houses, itemAuctions, rulesets } from "./blizzard";
-import { marketScope } from "./tsm";
+import { marketScope, marketUrl, parseMarketCsv } from "./tsm";
 
 export type HouseChoice = {
   rulesetId: number;
@@ -28,9 +28,21 @@ async function tsmMinBuyouts(db: PrismaClient): Promise<Map<number, number>> {
   return new Map(rows.map((r) => [r.itemId, r.minBuyout!]));
 }
 
+// Our faction's prices on the Normal ruleset, straight from TSM's public file,
+// to cross-check: our house should match PvP better than Normal. Not stored.
+async function tsmOtherRuleset(ruleset: string): Promise<Map<number, number>> {
+  try {
+    const res = await fetch(marketUrl({ region: MARKET.region, ruleset, faction: MARKET.faction }), { cache: "no-store" });
+    if (!res.ok) return new Map();
+    return new Map(parseMarketCsv(await res.text()).filter((r) => r.minBuyout).map((r) => [r.itemId, r.minBuyout!]));
+  } catch {
+    return new Map();
+  }
+}
+
 export type Discovery = {
   ruleset: { id: number; name?: string };
-  candidates: { houseId: number; name: string; commodityRows: number; score: number; compared: number }[];
+  candidates: { houseId: number; name: string; commodityRows: number; score: number; compared: number; normalScore?: number }[];
   chosen: HouseChoice | null;
   buyout: { perUnit: boolean; stacked: number; perUnitScore: number; perStackScore: number } | null;
   note: string;
@@ -43,6 +55,7 @@ export async function discoverHouse(db: PrismaClient): Promise<Discovery> {
   if (!blizzardConfigured()) throw new Error("BNET_CLIENT_ID and BNET_CLIENT_SECRET are not set on this deployment.");
   const tsm = await tsmMinBuyouts(db);
   if (!tsm.size) throw new Error("No TSM prices collected yet to compare against.");
+  const normal = await tsmOtherRuleset("normal");
   const rs = await rulesets();
   const ruleset = rs.find((r) => /^pvp$/i.test(r.name ?? "")) ?? rs.find((r) => r.id === 1) ?? rs[0];
   if (!ruleset) throw new Error("Blizzard listed no rulesets.");
@@ -52,12 +65,21 @@ export async function discoverHouse(db: PrismaClient): Promise<Discovery> {
   const candidates: Discovery["candidates"] = [];
   for (const h of list.length ? list : all) {
     const c = await commodities(ruleset.id, h.id);
-    const m = matchScore(depthFrom(c.auctions, false), tsm);
-    candidates.push({ houseId: h.id, name: h.name, commodityRows: c.auctions.length, ...m });
+    const depth = depthFrom(c.auctions, false);
+    const m = matchScore(depth, tsm);
+    const n = normal.size ? matchScore(depth, normal).score : undefined;
+    candidates.push({ houseId: h.id, name: h.name, commodityRows: c.auctions.length, ...m, normalScore: n });
   }
   candidates.sort((a, b) => b.score - a.score);
   const [best, second] = candidates;
-  const clear = best && best.compared >= 50 && best.score >= 0.3 && (!second || best.score >= second.score * 1.5);
+  // Clear: enough shared items, well ahead of the runner-up, and (when the
+  // Normal prices could be fetched) a better match for PvP than for Normal.
+  const clear =
+    best &&
+    best.compared >= 50 &&
+    best.score >= 0.3 &&
+    (!second || best.score >= second.score * 1.5) &&
+    (best.normalScore === undefined || best.score > best.normalScore);
   let buyout: Discovery["buyout"] = null;
   let chosen: HouseChoice | null = null;
   if (best && clear) {
@@ -72,7 +94,8 @@ export async function discoverHouse(db: PrismaClient): Promise<Discovery> {
     chosen,
     buyout,
     note: clear
-      ? `Chose ${best.name} (${best.houseId}): ${Math.round(best.score * 100)}% of ${best.compared} shared items match TSM's cheapest price.`
+      ? `Chose ${best.name} (${best.houseId}): ${Math.round(best.score * 100)}% of ${best.compared} shared items match TSM's cheapest PvP price` +
+        (best.normalScore !== undefined ? ` (against ${Math.round(best.normalScore * 100)}% for Normal).` : ".")
       : "No house matched TSM clearly enough to choose automatically. Pick one below if the scores make it obvious.",
   };
 }

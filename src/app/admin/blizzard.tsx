@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-type Candidate = { houseId: number; name: string; commodityRows: number; score: number; compared: number };
+type Candidate = { houseId: number; name: string; commodityRows: number; score: number; compared: number; normalScore?: number };
 type Result = {
   error?: string;
   note?: string;
@@ -42,8 +42,9 @@ export function BlizzardDiscovery() {
       {r?.note ? <p className={r.buyout ? "text-good" : "text-warn"}>{r.note}</p> : null}
       {r?.buyout ? (
         <p className="text-muted">
-          Item auction prices: {r.buyout.perUnit ? "per unit" : "per stack"} ({r.buyout.stacked} stacked auctions compared; per unit {pct(r.buyout.perUnitScore)},
-          per stack {pct(r.buyout.perStackScore)} agreement).
+          {r.buyout.stacked === 0
+            ? "No stacked item auctions: stackable goods all trade as commodities, so per unit or per stack does not matter."
+            : `Item auction prices: ${r.buyout.perUnit ? "per unit" : "per stack"} (${r.buyout.stacked} stacked auctions compared; per unit ${pct(r.buyout.perUnitScore)}, per stack ${pct(r.buyout.perStackScore)} agreement).`}
         </p>
       ) : null}
       {r?.candidates?.length ? (
@@ -54,7 +55,10 @@ export function BlizzardDiscovery() {
                 {c.name} <span className="text-muted">· house {c.houseId} · {c.commodityRows.toLocaleString("en-US")} listings</span>
               </span>
               <span className="flex items-center gap-3">
-                <span className="num">{pct(c.score)} of {c.compared} match</span>
+                <span className="num">
+                  PvP {pct(c.score)} of {c.compared}
+                  {c.normalScore !== undefined ? <span className="text-muted"> · Normal {pct(c.normalScore)}</span> : null}
+                </span>
                 <button
                   type="button"
                   disabled={busy}
