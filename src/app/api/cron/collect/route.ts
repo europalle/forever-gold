@@ -1,4 +1,5 @@
 import { collectAll } from "@/lib/collector";
+import { cronAuthorized } from "@/lib/cron-auth";
 import { db } from "@/lib/db";
 
 // Called by a scheduler with "Authorization: Bearer <CRON_SECRET>": cron-job.org
@@ -7,9 +8,12 @@ import { db } from "@/lib/db";
 export const maxDuration = 60;
 
 export async function GET(request: Request) {
-  const secret = process.env.CRON_SECRET;
-  if (!secret || request.headers.get("authorization") !== `Bearer ${secret}`) {
-    return Response.json({ error: "unauthorized" }, { status: 401 });
+  if (!process.env.CRON_SECRET) {
+    // Say so plainly: the usual cause is a variable added after the deploy.
+    return Response.json({ error: "CRON_SECRET is not set on this deployment" }, { status: 401 });
+  }
+  if (!cronAuthorized(request.headers.get("authorization"), process.env.CRON_SECRET)) {
+    return Response.json({ error: "Authorization header does not match CRON_SECRET" }, { status: 401 });
   }
   const results = await collectAll(db);
   const failed = results.some((r) => r.status === "error");
