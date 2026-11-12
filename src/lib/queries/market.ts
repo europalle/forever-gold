@@ -40,8 +40,18 @@ async function snapshots(): Promise<Snapshots> {
 
 type Raw = MarketItem & { olderValue: number | null };
 
-async function rows(s: Snapshots, where: string, order: string, limit: number, params: unknown[] = []): Promise<Raw[]> {
+// Optional level window: an item's required level, or its item level when it has
+// none (trade goods). Needs item details from members' addons; items without
+// them are left out while the window is on.
+export type LevelWindow = { min: number; max: number } | null;
+
+async function rows(s: Snapshots, where: string, order: string, limit: number, params: unknown[] = [], level: LevelWindow = null): Promise<Raw[]> {
   if (!s.market) return [];
+  if (level) {
+    const a = 4 + params.length;
+    where += ` AND EXISTS (SELECT 1 FROM "ItemInfo" ii WHERE ii.id = mp."itemId" AND COALESCE(NULLIF(ii."reqLevel", 0), ii."itemLevel") BETWEEN $${a} AND $${a + 1})`;
+    params = [...params, level.min, level.max];
+  }
   return db.$queryRawUnsafe<Raw[]>(
     `SELECT i.id, i.name, mp."minBuyout", mp."marketValue", mp.historical,
             rs."saleRate", rs."soldPerDay", rs."avgSalePrice", op."marketValue" AS "olderValue"
@@ -63,13 +73,22 @@ export type Mover = MarketItem & { goldPerDay: number; trend: number | null };
 
 // Where the gold moves: units sold per day (EU average per auction house) times
 // TSM's market value. Average sale price is skipped: a single odd sale skews it.
-export async function movers(limit = 40): Promise<{ items: Mover[]; trendSince: Date | null }> {
+// The window around a user's highest character, from addon or TSM uploads.
+export async function levelWindowFor(userId: string, spread = 10): Promise<{ window: LevelWindow; level: number | null; known: number }> {
+  const [top, known] = await Promise.all([db.character.aggregate({ where: { userId }, _max: { level: true } }), db.itemInfo.count()]);
+  const level = top._max.level;
+  return { level, known, window: level ? { min: Math.max(1, level - spread), max: level + spread } : null };
+}
+
+export async function movers(limit = 40, level: LevelWindow = null): Promise<{ items: Mover[]; trendSince: Date | null }> {
   const s = await snapshots();
   const r = await rows(
     s,
     `rs."soldPerDay" >= 1 AND mp."marketValue" IS NOT NULL`,
     `rs."soldPerDay" * mp."marketValue" DESC`,
     limit,
+    [],
+    level,
   );
   return {
     trendSince: s.olderAt,
@@ -87,7 +106,7 @@ export type Deal = MarketItem & { target: number; profitEach: number; discount: 
 // the lowest of TSM's market value, its long average, and what it actually sold
 // for EU-wide, so a launch-week high or a lagging average does not count as
 // "usual". With a day of history, items still sliding are left out.
-export async function deals(capEach: number, limit = 40): Promise<{ items: Deal[]; trendSince: Date | null }> {
+export async function deals(capEach: number, limit = 40, level: LevelWindow = null): Promise<{ items: Deal[]; trendSince: Date | null }> {
   const s = await snapshots();
   const r = await rows(
     s,
@@ -98,6 +117,7 @@ export async function deals(capEach: number, limit = 40): Promise<{ items: Deal[
     `(LEAST(mp."marketValue", COALESCE(mp.historical, mp."marketValue"), COALESCE(rs."avgSalePrice", mp."marketValue")) * ${1 - SETTINGS.cut} - mp."minBuyout") * rs."saleRate" DESC`,
     limit * 3,
     [capEach],
+    level,
   );
   const items: Deal[] = [];
   for (const x of r) {

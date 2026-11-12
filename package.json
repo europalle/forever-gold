@@ -10,7 +10,8 @@
     "lint": "eslint",
     "test": "vitest run",
     "collect": "tsx scripts/collect.ts",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "test:addon": "node tests/addon/run.mjs"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.10.1",
@@ -30,6 +31,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.4.6",
+    "fengari": "^0.1.5",
     "prisma": "^7.10.1",
     "tailwindcss": "4.3.3",
     "tsx": "^4.23.15",

@@ -11,6 +11,7 @@ export type LedgerView = {
   firstRow: Date | null;
   characters: { name: string; money: number | null; classKey: string | null; gold: { at: Date; copper: number }[] }[];
   items: (ItemStats & { name: string; cheapestNow: number | null })[];
+  measuredCut: { share: number; sales: number } | null;
   recent: { kind: string; character: string; name: string; quantity: number; unitPrice: number; amount: number; detail: string; time: Date }[];
 };
 
@@ -26,6 +27,14 @@ export async function ledgerView(userId: string): Promise<LedgerView> {
     db.goldSample.findMany({ where: { userId }, orderBy: { at: "asc" }, select: { character: true, at: true, copper: true } }),
     db.snapshot.findFirst({ where: { kind: "MARKET", scope: marketScope(MARKET) }, orderBy: { sourceUpdatedAt: "desc" }, select: { id: true } }),
   ]);
+
+  const inv = await db.ahInvoice.aggregate({
+    where: { userId, cut: { gt: 0 } },
+    _sum: { cut: true, buyout: true, bid: true },
+    _count: true,
+  });
+  const gross = (inv._sum.buyout ?? 0) + (inv._sum.bid ?? 0);
+  const measuredCut = inv._count && gross ? { share: (inv._sum.cut ?? 0) / gross, sales: inv._count } : null;
 
   const stats = byItem(rows).slice(0, 30);
   const ids = [...new Set([...stats.map((s) => s.itemId), ...rows.slice(0, 40).flatMap((r) => (r.itemId ? [r.itemId] : []))])];
@@ -44,6 +53,7 @@ export async function ledgerView(userId: string): Promise<LedgerView> {
     week: totals(rows, SETTINGS.cut, new Date(Date.now() - 7 * 86_400_000)),
     all: totals(rows, SETTINGS.cut),
     firstRow: rows.length ? rows[rows.length - 1].time : null,
+    measuredCut,
     characters: characters.map((c) => ({
       name: c.name,
       money: c.money,

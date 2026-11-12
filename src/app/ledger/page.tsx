@@ -42,7 +42,10 @@ async function Ledger() {
     <>
       <p className="mt-4 text-sm text-muted">
         Last upload {when(v.lastUpload)}. History since {when(v.firstRow)}. Sales are shown before the{" "}
-        {formatPercent(SETTINGS.cut)} auction house cut; net is after it.
+        {formatPercent(SETTINGS.cut)} auction house cut; net is after it.{" "}
+        {v.measuredCut
+          ? `Your sale mails show a cut of ${formatPercent(v.measuredCut.share, 1)} over ${v.measuredCut.sales} sales.`
+          : "Once the addon has read some sale mails, the real cut shows here."}
       </p>
 
       <section className="mt-4 grid gap-3 sm:grid-cols-2">

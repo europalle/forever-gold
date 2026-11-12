@@ -5,11 +5,11 @@ import { Header } from "@/components/header";
 import { SETTINGS } from "@/config/settings";
 import { requireUser } from "@/lib/auth";
 import { formatCopper, formatPercent } from "@/lib/money";
-import { capForUser, deals, movers, search, type MarketItem } from "@/lib/queries/market";
+import { capForUser, deals, levelWindowFor, movers, search, type LevelWindow, type MarketItem } from "@/lib/queries/market";
 
 export const metadata = { title: "Market · Forever Gold" };
 
-type SP = Promise<{ view?: string; q?: string }>;
+type SP = Promise<{ view?: string; q?: string; levels?: string }>;
 
 export default function MarketPage({ searchParams }: { searchParams: SP }) {
   return (
@@ -25,8 +25,12 @@ export default function MarketPage({ searchParams }: { searchParams: SP }) {
 async function Market({ searchParams }: { searchParams: SP }) {
   await connection();
   const me = await requireUser();
-  const { view: rawView, q = "" } = await searchParams;
+  const { view: rawView, q = "", levels } = await searchParams;
   const view = q ? "search" : rawView === "movers" ? "movers" : "deals";
+  const near = levels === "near";
+  const lw = await levelWindowFor(me.id);
+  const level: LevelWindow = near ? lw.window : null;
+  const href = (v: string, n: boolean) => `/market?view=${v}${n ? "&levels=near" : ""}`;
 
   return (
     <div className="mt-6">
@@ -40,12 +44,24 @@ async function Market({ searchParams }: { searchParams: SP }) {
         />
         <button type="submit" className="rounded border border-line px-3 py-2 text-sm hover:border-gold">Search</button>
       </form>
-      <nav className="mt-4 flex gap-2 text-sm">
-        <Tab href="/market?view=deals" on={view === "deals"}>Cheap right now</Tab>
-        <Tab href="/market?view=movers" on={view === "movers"}>Where the gold moves</Tab>
+      <nav className="mt-4 flex flex-wrap gap-2 text-sm">
+        <Tab href={href("deals", near)} on={view === "deals"}>Cheap right now</Tab>
+        <Tab href={href("movers", near)} on={view === "movers"}>Where the gold moves</Tab>
+        <span className="mx-1 self-center text-line">|</span>
+        <Tab href={href(view === "movers" ? "movers" : "deals", false)} on={!near}>All levels</Tab>
+        <Tab href={href(view === "movers" ? "movers" : "deals", true)} on={near}>
+          Around my level{lw.level ? ` (${lw.window!.min}-${lw.window!.max})` : ""}
+        </Tab>
       </nav>
+      {near && (!lw.level || lw.known === 0) ? (
+        <p className="mt-4 max-w-prose text-sm text-warn">
+          {!lw.level
+            ? "Your level comes from the addon: install it and let the helper upload once."
+            : "Item levels come from the addon: once it has looked items up and the helper has uploaded, this filter fills in."}
+        </p>
+      ) : null}
       <div className="mt-4">
-        {view === "search" ? <Search q={q} /> : view === "movers" ? <Movers /> : <Deals userId={me.id} />}
+        {view === "search" ? <Search q={q} /> : view === "movers" ? <Movers level={level} /> : <Deals userId={me.id} level={level} />}
       </div>
     </div>
   );
@@ -59,9 +75,9 @@ function Tab({ href, on, children }: { href: string; on: boolean; children: Reac
   );
 }
 
-async function Deals({ userId }: { userId: string }) {
+async function Deals({ userId, level }: { userId: string; level: LevelWindow }) {
   const { cap, gold } = await capForUser(userId);
-  const { items, trendSince } = await deals(cap);
+  const { items, trendSince } = await deals(cap, 40, level);
   return (
     <>
       <p className="max-w-prose text-sm text-muted">
@@ -93,8 +109,8 @@ async function Deals({ userId }: { userId: string }) {
   );
 }
 
-async function Movers() {
-  const { items } = await movers();
+async function Movers({ level }: { level: LevelWindow }) {
+  const { items } = await movers(40, level);
   return (
     <>
       <p className="max-w-prose text-sm text-muted">
