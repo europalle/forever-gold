@@ -1,9 +1,9 @@
 import { connection } from "next/server";
 import { Suspense } from "react";
 import { Header } from "@/components/header";
-import { deleteUser } from "@/lib/actions/admin";
 import { requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { DeleteButton } from "./delete-button";
 import { CreateUserForm, ResetForm } from "./forms";
 
 export const metadata = { title: "Admin · Forever Gold" };
@@ -54,12 +54,7 @@ async function Admin() {
               ) : (
                 <div className="flex flex-wrap items-center gap-3">
                   <ResetForm id={u.id} />
-                  <form action={deleteUser}>
-                    <input type="hidden" name="id" value={u.id} />
-                    <button type="submit" className="rounded border border-line px-2 py-1 text-xs text-bad hover:border-bad">
-                      Delete
-                    </button>
-                  </form>
+                  <DeleteButton id={u.id} name={u.displayName} />
                 </div>
               )}
             </li>

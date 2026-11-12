@@ -1,9 +1,10 @@
 import { CONVERSIONS, GROUP_ORDER, TRACKED, type Group, type TrackedItem } from "@/config/items";
-import { bestSkill, MARKET } from "@/config/player";
+import { MARKET } from "@/config/player";
 import { SETTINGS } from "@/config/settings";
-import { adviseItem, lockedGains, type Call, type Quote } from "./advice";
-import { db } from "./db";
-import { marketScope } from "./tsm";
+import { adviseItem, lockedGains, type Call, type Quote } from "../advice";
+import { db } from "../db";
+import { marketScope } from "../tsm";
+import { skillsFor } from "./ledger";
 
 export type Row = {
   item: TrackedItem;
@@ -19,14 +20,18 @@ export type Board = {
   snapshots: number;
   trendFrom: Date | null;
   groups: { group: Group; rows: Row[] }[];
+  skills: Record<string, number>; // from the user's TSM uploads; empty until one
 };
 
 const TREND_DAYS = 7;
 
-export async function board(): Promise<Board> {
+export async function board(userId: string): Promise<Board> {
   const scope = marketScope(MARKET);
   const ids = TRACKED.map((t) => t.id);
   const since = new Date(Date.now() - TREND_DAYS * 86_400_000);
+
+  const skills = await skillsFor(userId);
+  const bestSkill = (profession: string) => skills[profession] ?? 0;
 
   const [latest, oldest, region, snapshots] = await Promise.all([
     db.snapshot.findFirst({ where: { kind: "MARKET", scope }, orderBy: { sourceUpdatedAt: "desc" } }),
@@ -99,5 +104,6 @@ export async function board(): Promise<Board> {
     snapshots,
     trendFrom: oldest && oldest.id !== latest?.id ? oldest.sourceUpdatedAt : null,
     groups: GROUP_ORDER.map((group) => ({ group, rows: rows.filter((r) => r.item.group === group) })),
+    skills,
   };
 }

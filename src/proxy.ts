@@ -7,7 +7,13 @@ import { SESSION_COOKIE, verifyToken } from "./lib/session";
 // check; /login and robots.txt must stay reachable.
 export async function proxy(request: NextRequest) {
   const claims = await verifyToken(request.cookies.get(SESSION_COOKIE)?.value);
-  const res = claims ? NextResponse.next() : NextResponse.redirect(new URL("/login", request.url));
+  // API callers (the upload, later the helper program) get a plain 401, not a
+  // redirect to a login page they cannot use.
+  const res = claims
+    ? NextResponse.next()
+    : request.nextUrl.pathname.startsWith("/api/")
+      ? NextResponse.json({ error: "Sign in first." }, { status: 401 })
+      : NextResponse.redirect(new URL("/login", request.url));
   res.headers.set("X-Robots-Tag", "noindex, nofollow");
   return res;
 }

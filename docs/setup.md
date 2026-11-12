@@ -11,12 +11,18 @@ What you do once, in order. Each step says what it unlocks. Nothing here needs a
 
 1. Vercel, **Add New**, **Project**, import `europalle/forever-gold`. Leave the build settings as they are.
 2. Before the first deploy, add environment variables:
-   - `APP_PASSWORD`: the password you will type to sign in.
+   - `APP_PASSWORD`: used once, to create your admin account (see "First sign-in" below).
    - `SESSION_SECRET`: 64 random characters. Make one with `openssl rand -hex 32`, or any password manager's generator.
    - `CRON_SECRET`: another 64 random characters, different from the first. The scheduler uses it in step 3.
 3. Database: in **Storage**, open the database and **Connect Project** to `forever-gold`. That adds its connection strings to the project; the app picks the right one by itself.
 4. **Deploy**. The build applies the database migrations first.
 5. **Settings**, **Domains**, add `forevergold.paro.fyi`. Then, wherever paro.fyi's DNS lives, add a CNAME record named `forevergold` pointing to `cname.vercel-dns.com`. Vercel shows a green check once it resolves; HTTPS is set up automatically.
+
+## First sign-in
+
+1. Open the site. Type the username you want (your main's name works) and `APP_PASSWORD` as the password. That creates your admin account with that password.
+2. From then on `APP_PASSWORD` does nothing; you can delete it in Vercel. Change your password any time under **Account**.
+3. Guildies: **Admin**, **Add a guildie**, give them a username and a starting password, and send them both with the address. There is no sign-up page, and search engines are told to stay out.
 
 ## 3. Scheduler: cron-job.org (collects the prices)
 

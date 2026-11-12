@@ -5,7 +5,7 @@ import type { Call } from "@/lib/advice";
 import { formatCopper, formatPercent } from "@/lib/money";
 import { Header } from "@/components/header";
 import { requireUser } from "@/lib/auth";
-import { board, type Row } from "@/lib/queries";
+import { board, type Row } from "@/lib/queries/board";
 
 export default function Home() {
   return (
@@ -20,8 +20,8 @@ export default function Home() {
 
 async function Board() {
   await connection();
-  await requireUser();
-  const b = await board();
+  const me = await requireUser();
+  const b = await board(me.id);
 
   if (!b.marketScanAt) {
     return (
@@ -45,6 +45,20 @@ async function Board() {
           {b.trendFrom ? ` · trend since ${when(b.trendFrom)}` : " · trend needs a second snapshot"}.
         </p>
         <p className="mt-1">
+          {Object.keys(b.skills).length ? (
+            <>
+              Your skills, from your TSM upload:{" "}
+              {Object.entries(b.skills)
+                .map(([k, v]) => `${k} ${v}`)
+                .join(", ")}
+              .{" "}
+            </>
+          ) : (
+            <>
+              <a href="/ledger" className="text-gold hover:underline">Upload your TSM file</a> so the calls use your
+              profession skills.{" "}
+            </>
+          )}
           Assumes a {formatPercent(SETTINGS.cut)} cut and a {formatCopper(SETTINGS.depositPerListing)} deposit per
           listing, weighted by the chance it expires. Neither is confirmed for Forever yet.
         </p>
