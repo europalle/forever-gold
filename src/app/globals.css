@@ -10,6 +10,9 @@
   --good: #8fc46a;
   --bad: #d9705f;
   --warn: #d9a75f;
+  /* Chart series, validated for the dark surface (dataviz validator, 2026-11-12) */
+  --series-cheapest: #b8892e;
+  --series-value: #5a95e0;
 }
 
 @theme inline {

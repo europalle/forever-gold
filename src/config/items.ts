@@ -3,7 +3,7 @@
 // has not been checked for these yet (the addon will read the real ones from
 // the profession window).
 
-export type Group = "Leather" | "Hides" | "Cured hides" | "Cloth" | "Enchanting" | "Reagents";
+export type Group = "From your trades" | "Leather" | "Hides" | "Cured hides" | "Cloth" | "Enchanting" | "Reagents";
 
 export type TrackedItem = { id: number; name: string; group: Group };
 
@@ -53,7 +53,8 @@ export const TRACKED: TrackedItem[] = [
   { id: 8150, name: "Deeprock Salt", group: "Reagents" },
 ];
 
-export const GROUP_ORDER: Group[] = ["Hides", "Cured hides", "Leather", "Cloth", "Enchanting", "Reagents"];
+// "From your trades" is filled per user from their TSM ledger (src/lib/queries/board.ts).
+export const GROUP_ORDER: Group[] = ["Hides", "Cured hides", "Leather", "Cloth", "Enchanting", "From your trades", "Reagents"];
 
 // Make `output` from `from` plus bought `extras`. `from` is the item you have
 // (the one the advice is about); extras are priced at their auction minimum.

@@ -27,7 +27,21 @@ const TREND_DAYS = 7;
 
 export async function board(userId: string): Promise<Board> {
   const scope = marketScope(MARKET);
-  const ids = TRACKED.map((t) => t.id);
+  // The fixed list, plus whatever this user sold, bought or had expire in the
+  // last 30 days according to their TSM uploads.
+  const known = new Set(TRACKED.map((t) => t.id));
+  const traded = await db.ledgerEntry.findMany({
+    where: { userId, itemId: { not: null }, kind: { in: ["SALE", "BUY", "EXPIRED"] }, time: { gte: new Date(Date.now() - 30 * 86_400_000) } },
+    distinct: ["itemId"],
+    select: { itemId: true },
+  });
+  const extraIds = traded.map((t) => t.itemId!).filter((id) => !known.has(id));
+  const extraNames = extraIds.length ? await db.item.findMany({ where: { id: { in: extraIds } }, select: { id: true, name: true } }) : [];
+  const tracked: TrackedItem[] = [
+    ...TRACKED,
+    ...extraNames.map((n) => ({ id: n.id, name: n.name || `Item ${n.id}`, group: "From your trades" as const })),
+  ];
+  const ids = tracked.map((t) => t.id);
   const since = new Date(Date.now() - TREND_DAYS * 86_400_000);
 
   const skills = await skillsFor(userId);
@@ -81,9 +95,9 @@ export async function board(userId: string): Promise<Board> {
     });
   }
 
-  const nameOf = (id: number) => TRACKED.find((t) => t.id === id)?.name ?? `Item ${id}`;
+  const nameOf = (id: number) => tracked.find((t) => t.id === id)?.name ?? `Item ${id}`;
 
-  const rows: Row[] = TRACKED.map((item) => {
+  const rows: Row[] = tracked.map((item) => {
     return {
       item,
       quote: quotes.get(item.id) ?? null,

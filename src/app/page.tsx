@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { connection } from "next/server";
 import { Suspense } from "react";
 import { SETTINGS } from "@/config/settings";
@@ -151,7 +152,9 @@ function ItemRow({ row }: { row: Row }) {
   const gap = q?.minBuyout && q.marketValue ? q.minBuyout / q.marketValue - 1 : null;
   return (
     <tr className="border-t border-line align-top">
-      <td className="px-3 py-2">{row.item.name}</td>
+      <td className="px-3 py-2">
+        <Link href={`/item/${row.item.id}`} className="hover:text-gold">{row.item.name}</Link>
+      </td>
       <td className="num px-3 py-2 text-right">
         {formatCopper(q?.minBuyout)}
         {gap !== null && Math.abs(gap) >= 0.15 ? (
@@ -179,7 +182,7 @@ function ItemCard({ row }: { row: Row }) {
   return (
     <li className="p-3">
       <div className="flex items-baseline justify-between gap-2">
-        <span className="font-medium">{row.item.name}</span>
+        <Link href={`/item/${row.item.id}`} className="font-medium hover:text-gold">{row.item.name}</Link>
         <span className="num">{formatCopper(q?.minBuyout)}</span>
       </div>
       <div className="num mt-1 flex flex-wrap gap-x-3 text-xs text-muted">
