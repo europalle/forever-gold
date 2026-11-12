@@ -70,7 +70,7 @@ Same as Bubbi's other project unless he says otherwise: Next.js (App Router), Ty
 ## Notes from session one (2026-11-12)
 
 - Stack: Next.js 16.4 (`cacheComponents` and `partialPrefetching` on: uncached database reads sit in `<Suspense>` after `await connection()`), Prisma 7.10 with `@prisma/adapter-pg`, client generated to `src/generated/prisma` (ignored; `postinstall` rebuilds it), Tailwind 4, Vitest. `AGENTS.md` is written by Next itself: read the guides in `node_modules/next/dist/docs/` before relying on memory.
-- Collector: `src/lib/collector.ts`. Each TSM file is stored once per scan time (`Snapshot` plus `MarketPrice` or `RegionStat`), with ETag so an unchanged file answers 304. Retention: everything for 14 days, then the last snapshot of each UTC day. Runs from `npm run collect`, `GET /api/cron/collect` with `Authorization: Bearer $CRON_SECRET`, or `.github/workflows/collect.yml` hourly once the repo secret `DATABASE_URL` is set.
+- Collector: `src/lib/collector.ts`. Each TSM file is stored once per scan time (`Snapshot` plus `MarketPrice` or `RegionStat`), with ETag so an unchanged file answers 304. Retention: everything for 14 days, then the last snapshot of each UTC day. Runs from `npm run collect`, `GET /api/cron/collect` with `Authorization: Bearer $CRON_SECRET`, or `.github/workflows/collect.yml` every 2 hours once the repo secret `DATABASE_URL` is set.
 - Measured cadence: market file scans at 09:25 and 12:25 UTC on 2026-11-12, so about every 3 hours. The region file was a day old at fetch.
 - Prices above 2^31 copper (about 214,748g) are stored as unknown: one joke listing sat at 2.2 million gold.
 - A market snapshot is about 0.7 MB in Postgres.
