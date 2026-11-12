@@ -62,14 +62,11 @@ end
 -- a disenchant used up.
 local function gearCounts()
   local counts = {}
-  if not (C_Container and C_Container.GetContainerNumSlots) then return counts end
   local last = NUM_TOTAL_EQUIPPED_BAG_SLOTS or 4
   for bag = 0, last do
-    for slot = 1, (FG.try(C_Container.GetContainerNumSlots, bag) or 0) do
-      local info = FG.try(C_Container.GetContainerItemInfo, bag, slot)
-      if info and info.itemID and FG.usable(info.itemID) and (info.quality or 0) >= 2 then
-        counts[info.itemID] = (counts[info.itemID] or 0) + (info.stackCount or 1)
-      end
+    for slot = 1, (FG.bagSlots(bag)) do
+      local id, count, quality = FG.bagItem(bag, slot)
+      if id and (quality or 0) >= 2 then counts[id] = (counts[id] or 0) + count end
     end
   end
   return counts

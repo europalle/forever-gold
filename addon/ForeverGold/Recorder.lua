@@ -57,19 +57,20 @@ local function snapshotProfessions()
   c.profs = profs
 end
 
+-- Counts per item ID, plus how many slots were seen and through which API,
+-- so an empty result can be told apart from a client that hides its bags.
 local function countBags(bagIds)
-  local counts = {}
-  if not (C_Container and C_Container.GetContainerNumSlots) then return counts end
+  local counts, slotsSeen, api = {}, 0, "none"
   for _, bag in ipairs(bagIds) do
-    local slots = FG.try(C_Container.GetContainerNumSlots, bag) or 0
+    local slots, via = FG.bagSlots(bag)
+    if slots > 0 then api = via end
+    slotsSeen = slotsSeen + slots
     for slot = 1, slots do
-      local info = FG.try(C_Container.GetContainerItemInfo, bag, slot)
-      if info and info.itemID and FG.usable(info.itemID) then
-        counts[info.itemID] = (counts[info.itemID] or 0) + (info.stackCount or 1)
-      end
+      local id, count = FG.bagItem(bag, slot)
+      if id then counts[id] = (counts[id] or 0) + count end
     end
   end
-  return counts
+  return counts, slotsSeen, api
 end
 
 local function carriedBagIds()
@@ -98,7 +99,12 @@ local pendingBags = false
 local function snapshotBags()
   pendingBags = false
   local c = me()
-  if c then c.bags = countBags(carriedBagIds()) end
+  if not c then return end
+  local counts, slots, api = countBags(carriedBagIds())
+  c.bagCheck = { slots = slots, api = api, at = time() }
+  -- No slots at all means the bags could not be read (at logout, say): keep
+  -- the last good reading rather than saving empty bags.
+  if slots > 0 then c.bags = counts end
 end
 
 FG.on("PLAYER_LOGIN", function()
@@ -122,8 +128,11 @@ end)
 FG.on("BANKFRAME_OPENED", function()
   local c = me()
   if c then
-    c.bank = countBags(bankBagIds())
-    c.bankAt = time()
+    local counts, slots = countBags(bankBagIds())
+    if slots > 0 then
+      c.bank = counts
+      c.bankAt = time()
+    end
   end
 end)
 

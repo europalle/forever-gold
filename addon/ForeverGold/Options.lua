@@ -23,6 +23,8 @@ function FG.statusLines()
     table.insert(lines, "This character is saved as: " .. tostring(FG.playerName()))
     table.insert(lines, string.format("This character: level %s, %d kinds of items in bags, %d professions recorded.",
       tostring(me.level or "?"), count(me.bags), count(me.profs)))
+    local bc = me.bagCheck
+    if bc then table.insert(lines, string.format("Bags read through %s, %d slots seen.", tostring(bc.api), bc.slots or 0)) end
   end
   table.insert(lines, string.format("Item details looked up so far: %d. Saved at logout or /reload; the helper uploads them.", count(FG.db and FG.db.items)))
   table.insert(lines, string.format("Recorded: %d loot windows, %d vendors, %d trainers.", #(FG.db and FG.db.loot or {}), count(FG.db and FG.db.vendors), count(FG.db and FG.db.trainers)))

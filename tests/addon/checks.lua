@@ -19,6 +19,23 @@ local c = ForeverGoldDB.chars["Bubbi Hunter"]
 check(c and c.level == 30 and c.money == 55606 and c.faction == "Alliance", "player snapshot")
 check(c.profs.Skinning and c.profs.Skinning.lvl == 185, "skinning recorded")
 check(c.bags[4232] == 12 and c.bags[4304] == 18, "bags counted")
+check(c.bagCheck and c.bagCheck.api == "C_Container" and c.bagCheck.slots == 4, "bag check recorded")
+do
+  -- An older client: bags only through the global functions, several returns.
+  local saved = C_Container
+  C_Container = nil
+  GetContainerNumSlots = function(bag) return bag == 0 and 2 or 0 end
+  GetContainerItemID = function(bag, slot) return ({ 4232, 2318 })[slot] end
+  GetContainerItemInfo = function(bag, slot) return "tex", ({ 5, 9 })[slot], false, 1 end
+  FireEvent("BAG_UPDATE_DELAYED")
+  check(c.bags[4232] == 5 and c.bags[2318] == 9 and c.bagCheck.api == "global", "bags read through the older API")
+  -- No slots at all (bags unreadable): the last reading is kept.
+  GetContainerNumSlots = function() return 0 end
+  FireEvent("PLAYER_LOGOUT")
+  check(c.bags[4232] == 5, "unreadable bags do not wipe the last reading")
+  C_Container, GetContainerNumSlots, GetContainerItemID, GetContainerItemInfo = saved, nil, nil, nil
+  FireEvent("BAG_UPDATE_DELAYED")
+end
 
 FireEvent("MAIL_SHOW"); FireEvent("MAIL_INBOX_UPDATE")
 local n = 0; for k, v in pairs(ForeverGoldDB.invoices) do n = n + 1; check(v.cut == 160 and v.deposit == 100 and v.qty == 10, "invoice fields") end

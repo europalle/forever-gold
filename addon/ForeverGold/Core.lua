@@ -2,7 +2,7 @@
 local ADDON, FG = ...
 _G.ForeverGold = FG
 
-FG.version = "0.3.0"
+FG.version = "0.3.1"
 FG.GOLD = "|cffffd100"
 FG.MUTED = "|cff9d9d9d"
 FG.GOOD = "|cff40ff40"
@@ -26,6 +26,38 @@ function FG.usable(v)
   if v == nil then return false end
   if issecretvalue and FG.try(issecretvalue, v) then return false end
   return true
+end
+
+-- Bag slots, through whichever container API this client has: C_Container
+-- (a table per slot) or the older globals (several return values).
+function FG.bagSlots(bag)
+  if C_Container and C_Container.GetContainerNumSlots then
+    local n = FG.try(C_Container.GetContainerNumSlots, bag)
+    if n then return n, "C_Container" end
+  end
+  if GetContainerNumSlots then return FG.try(GetContainerNumSlots, bag) or 0, "global" end
+  return 0, "none"
+end
+
+-- itemID, count, quality of one slot, or nil.
+function FG.bagItem(bag, slot)
+  if C_Container and C_Container.GetContainerItemInfo then
+    local info = FG.try(C_Container.GetContainerItemInfo, bag, slot)
+    if type(info) == "table" and info.itemID and FG.usable(info.itemID) then
+      return info.itemID, info.stackCount or 1, info.quality
+    end
+  end
+  local id = (C_Container and C_Container.GetContainerItemID and FG.try(C_Container.GetContainerItemID, bag, slot))
+    or (GetContainerItemID and FG.try(GetContainerItemID, bag, slot))
+  if not id or not FG.usable(id) then return nil end
+  local count, quality = 1, nil
+  if GetContainerItemInfo then
+    local _, c, _, q = FG.try(GetContainerItemInfo, bag, slot)
+    if type(c) == "number" then count = c end
+    if type(q) == "number" then quality = q end
+  end
+  if not quality and GetItemInfo then quality = select(3, FG.try(GetItemInfo, id)) end
+  return id, count, quality
 end
 
 function FG.money(copper)
