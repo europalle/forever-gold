@@ -4,6 +4,8 @@ import { Header } from "@/components/header";
 import { requireUser } from "@/lib/auth";
 import { formatCopper, formatPercent } from "@/lib/money";
 import { itemDetail } from "@/lib/queries/market";
+import { itemSignal } from "@/lib/queries/signals";
+import { ACTION_LABEL, CONDITION_LABEL, actionClass } from "@/lib/signal-labels";
 import { PriceChart } from "./chart";
 
 export const metadata = { title: "Item · Forever Gold" };
@@ -25,7 +27,8 @@ async function Item({ params }: { params: Promise<{ id: string }> }) {
   await connection();
   const me = await requireUser();
   const id = Number((await params).id);
-  const d = Number.isInteger(id) && id > 0 ? await itemDetail(id, me.id) : null;
+  const ok = Number.isInteger(id) && id > 0;
+  const [d, sig] = ok ? await Promise.all([itemDetail(id, me.id), itemSignal(id)]) : [null, null];
   if (!d) return <p className="mt-8 text-muted">No prices for that item on your market yet.</p>;
   const last = d.history[d.history.length - 1];
 
@@ -44,6 +47,8 @@ async function Item({ params }: { params: Promise<{ id: string }> }) {
           />
         </dl>
       </section>
+
+      {sig?.signal ? <SignalBlock s={sig.signal} events={sig.events} /> : null}
 
       <section>
         <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted">Price history, your auction house</h2>
@@ -102,5 +107,42 @@ function Stat({ label, value, hint }: { label: string; value: string; hint?: str
       <dt className="text-xs text-muted" title={hint}>{label}</dt>
       <dd className="num mt-1 text-base">{value}</dd>
     </div>
+  );
+}
+
+function SignalBlock({ s, events }: { s: NonNullable<Awaited<ReturnType<typeof itemSignal>>["signal"]>; events: Awaited<ReturnType<typeof itemSignal>>["events"] }) {
+  const pct = (x: number | null) => (x == null ? "-" : `${x > 0 ? "+" : ""}${Math.round(x * 100)}%`);
+  return (
+    <section>
+      <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted">Signal</h2>
+      <div className="rounded border border-line p-3">
+        <div className="flex flex-wrap items-baseline gap-2">
+          {s.action !== "none" ? (
+            <span className={`rounded border px-1.5 text-xs uppercase tracking-wide ${actionClass(s.action, s.strength)}`}>
+              {s.strength === 2 ? "Strong " : ""}
+              {ACTION_LABEL[s.action]}
+            </span>
+          ) : null}
+          <span className="font-medium">{CONDITION_LABEL[s.condition]}</span>
+        </div>
+        <p className="mt-1 text-sm text-muted">{s.reason}</p>
+        <dl className="mt-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-5">
+          <Stat label="Usual (week median)" value={formatCopper(s.fair)} />
+          <Stat label="Expected in 24h" value={formatCopper(s.expected)} />
+          <Stat label="Last 24h" value={pct(s.change24)} />
+          <Stat label="Trend a day" value={pct(s.slope)} />
+          <Stat label="Supply vs usual" value={s.supplyRatio != null ? `${s.supplyRatio.toFixed(1)}x` : "-"} hint={s.supplyChange != null ? `${pct(s.supplyChange)} in 24h` : undefined} />
+        </dl>
+        {events.length > 1 ? (
+          <p className="mt-3 text-xs text-muted">
+            Earlier calls:{" "}
+            {events
+              .slice(1)
+              .map((e) => `${e.at.toISOString().slice(5, 16).replace("T", " ")} ${ACTION_LABEL[e.action].toLowerCase()} (${CONDITION_LABEL[e.condition].toLowerCase()}) at ${formatCopper(e.price)}`)
+              .join(" · ")}
+          </p>
+        ) : null}
+      </div>
+    </section>
   );
 }

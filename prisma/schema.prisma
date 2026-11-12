@@ -356,3 +356,52 @@ model DepthItem {
   @@id([snapshotId, itemId])
   @@index([itemId])
 }
+
+// Units listed and the cheapest unit price, every three hours or so, for 30
+// days: the supply history behind the signals (DepthItem keeps only 72 hours).
+model SupplyPoint {
+  itemId   Int
+  at       DateTime
+  minUnit  Int
+  totalQty Int
+
+  @@id([itemId, at])
+  @@index([at])
+}
+
+// The current signal per item, rebuilt after each collection (src/lib/signal-run.ts).
+model ItemSignal {
+  itemId       Int      @id
+  at           DateTime
+  condition    String // CRASH, FLOOD, SQUEEZE, SPIKE, SLIDE, DIP, RICH, UPTREND, CALM
+  action       String // buy, sell, hold, wait, none
+  strength     Int // 0, 1, 2 (strong)
+  reason       String
+  price        Int
+  fair         Int
+  expected     Int
+  change24     Float?
+  slope        Float?
+  z            Float
+  supplyRatio  Float?
+  supplyChange Float?
+  liquid       Boolean
+  soldPerDay   Float?
+
+  @@index([action, strength])
+}
+
+// Each new call when it first appears, for the live track record.
+model SignalEvent {
+  id        Int      @id @default(autoincrement())
+  itemId    Int
+  at        DateTime
+  condition String
+  action    String
+  strength  Int
+  price     Int
+  fair      Int
+
+  @@index([itemId, at])
+  @@index([at])
+}

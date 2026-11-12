@@ -23,8 +23,9 @@ local function addLines(tooltip, id)
   end
   local p = d.p and d.p[id]
   local call = d.calls and d.calls[id]
+  local sig = FG.signal and FG.signal(id)
   local here, others = owned(id)
-  if not p and not call and not FG.live[id] and here + others == 0 then return end
+  if not p and not call and not sig and not FG.live[id] and here + others == 0 then return end
 
   tooltip:AddLine(" ")
   tooltip:AddLine("Forever Gold", 1, 0.82, 0)
@@ -49,6 +50,11 @@ local function addLines(tooltip, id)
     end
     tooltip:AddDoubleLine("  Call", right, 1, 1, 1, 1, 1, 1)
     if call.t and IsShiftKeyDown and IsShiftKeyDown() then tooltip:AddLine("  " .. call.t, 0.62, 0.62, 0.62, true) end
+  end
+  if sig then
+    tooltip:AddDoubleLine("  Signal", FG.signalText(sig), 1, 1, 1, 1, 1, 1)
+    if sig.f then tooltip:AddDoubleLine("  Usual (week) · in 24h", FG.money(sig.f) .. FG.MUTED .. " · " .. FG.R .. FG.money(sig.e), 1, 1, 1, 1, 1, 1) end
+    if sig.t and IsShiftKeyDown and IsShiftKeyDown() then tooltip:AddLine("  " .. sig.t, 0.62, 0.62, 0.62, true) end
   end
   if here + others > 0 then
     tooltip:AddDoubleLine("  You have", others > 0 and string.format("%d · alts %d", here, others) or tostring(here), 1, 1, 1, 1, 1, 1)

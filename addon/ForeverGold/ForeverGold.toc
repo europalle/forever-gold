@@ -2,7 +2,7 @@
 ## Title: Forever Gold
 ## Notes: Market advice for your guild's auction house. Reads and shows only: never posts, buys or sends.
 ## Author: Forever Gold
-## Version: 0.3.2
+## Version: 0.4.0
 ## SavedVariables: ForeverGoldDB
 ## IconTexture: Interface\Icons\INV_Misc_Coin_02
 
@@ -11,6 +11,7 @@ Core.lua
 Recorder.lua
 ItemInfo.lua
 Live.lua
+Signals.lua
 Tooltip.lua
 Panel.lua
 Options.lua

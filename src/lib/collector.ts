@@ -1,6 +1,7 @@
 import { Prisma, type PrismaClient } from "@/generated/prisma/client";
 import { MARKET } from "@/config/player";
 import { collectBlizzard } from "./blizzard-collect";
+import { runSignals } from "./signal-run";
 import {
   marketScope,
   marketUrl,
@@ -13,7 +14,7 @@ import {
 } from "./tsm";
 
 export type CollectResult = {
-  kind: "MARKET" | "REGION" | "BLIZZARD";
+  kind: "MARKET" | "REGION" | "BLIZZARD" | "SIGNALS";
   scope: string;
   status: "stored" | "unchanged" | "error";
   scanTime?: string;
@@ -171,5 +172,17 @@ export async function collectAll(db: PrismaClient, fetcher: Fetcher = fetch): Pr
     }
   }
   if (out.some((r) => r.status === "stored")) await pruneSnapshots(db);
+  // Rebuild the signals after new data, or when they are over three hours old.
+  try {
+    const fresh = await db.itemSignal.findFirst({ orderBy: { at: "desc" }, select: { at: true } });
+    if (out.some((r) => r.status === "stored") || !fresh || Date.now() - fresh.at.getTime() > 3 * 3_600_000) {
+      const r = await runSignals(db);
+      out.push({ kind: "SIGNALS", scope: "eu", status: "stored", items: r.items, detail: `${r.calls} calls${r.backtest ? ", backtest refreshed" : ""}` });
+    } else {
+      out.push({ kind: "SIGNALS", scope: "eu", status: "unchanged" });
+    }
+  } catch (e) {
+    out.push({ kind: "SIGNALS", scope: "eu", status: "error", detail: e instanceof Error ? e.message : String(e) });
+  }
   return out;
 }

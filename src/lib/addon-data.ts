@@ -8,9 +8,11 @@ import { db } from "./db";
 import { luaAssign, type LuaOut } from "./lua-write";
 import { board } from "./queries/board";
 import { capForUser, deals } from "./queries/market";
+import { holdings } from "./queries/signals";
 import { marketScope } from "./tsm";
 
-export const ADDON_DATA_VERSION = 1;
+export const ADDON_DATA_VERSION = 1; // fields are only ever added: older addons ignore what they do not know
+const ALERT_LIMIT = 30;
 const WANT_LIMIT = 3000; // item lookups asked for per file, so a session is not flooded
 
 const callCode = { sell: "S", hold: "H", convert: "C", "no-data": "N" } as const;
@@ -21,11 +23,13 @@ export async function buildAddonData(userId: string, displayName: string, now = 
     db.snapshot.findFirst({ where: { kind: "MARKET", scope }, orderBy: { sourceUpdatedAt: "desc" } }),
     db.snapshot.findFirst({ where: { kind: "REGION", scope: MARKET.region }, orderBy: { sourceUpdatedAt: "desc" } }),
   ]);
-  const [prices, stats, b, cap] = await Promise.all([
+  const [prices, stats, b, cap, signals, have] = await Promise.all([
     latest ? db.marketPrice.findMany({ where: { snapshotId: latest.id }, select: { itemId: true, minBuyout: true, marketValue: true } }) : [],
     region ? db.regionStat.findMany({ where: { snapshotId: region.id }, select: { itemId: true, saleRate: true, soldPerDay: true } }) : [],
     board(userId),
     capForUser(userId),
+    db.itemSignal.findMany({ where: { action: { not: "none" } } }),
+    holdings(userId),
   ]);
   const buy = await deals(cap.cap, 15);
 
@@ -69,6 +73,22 @@ export async function buildAddonData(userId: string, displayName: string, now = 
     calls[d.id] ??= { k: "B", g: d.profitEach, t: `Listed ${Math.round(d.discount * 100)}% under its usual price and sells well.` };
   }
 
+  // sig[id] = { a = B|S|H|W, s = strength, c = condition, f = usual price,
+  // e = expected in 24h, t = reason }. alerts = the strongest calls on what the
+  // user holds, then strong buys they can afford.
+  const sig: Record<string, LuaOut> = {};
+  const actionCode: Record<string, string> = { buy: "B", sell: "S", hold: "H", wait: "W" };
+  for (const s of signals) {
+    sig[s.itemId] = { a: actionCode[s.action], s: s.strength, c: s.condition, f: s.fair, e: s.expected, t: s.reason };
+  }
+  const rank = (s: (typeof signals)[number]) => s.strength * 10 + (s.action === "sell" || s.action === "wait" ? 1 : 0);
+  const alerts = [
+    ...signals.filter((s) => (have.get(s.itemId) ?? 0) > 0 && s.strength >= 1).sort((a, b) => rank(b) - rank(a)),
+    ...signals.filter((s) => s.action === "buy" && s.strength === 2 && s.price <= cap.cap && !have.get(s.itemId)),
+  ]
+    .slice(0, ALERT_LIMIT)
+    .map((s) => s.itemId);
+
   // Items on the market whose details the site does not know yet.
   const known = new Set((await db.itemInfo.findMany({ select: { id: true } })).map((i) => i.id));
   const nameless = await db.$queryRaw<{ itemId: number }[]>`
@@ -89,6 +109,9 @@ export async function buildAddonData(userId: string, displayName: string, now = 
     p,
     calls,
     lists,
+    sig,
+    alerts,
+    signalsAt: signals[0] ? Math.floor(signals[0].at.getTime() / 1000) : 0,
     want,
   };
   return "-- Written by Forever Gold. Do not edit: the helper replaces this file.\n" + luaAssign("ForeverGoldData", data);

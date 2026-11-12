@@ -26,7 +26,10 @@ end
 FG.on("AUCTION_HOUSE_BROWSE_RESULTS_UPDATED", function()
   if not (C_AuctionHouse and C_AuctionHouse.GetBrowseResults) then return end
   for _, r in ipairs(FG.try(C_AuctionHouse.GetBrowseResults) or {}) do
-    if r.itemKey and r.minPrice then put(r.itemKey.itemID, r.minPrice, r.totalQuantity) end
+    if r.itemKey and r.minPrice then
+      put(r.itemKey.itemID, r.minPrice, r.totalQuantity)
+      if FG.liveCheck then FG.liveCheck(r.itemKey.itemID, r.minPrice) end
+    end
   end
   if FG.refreshPanel then FG.refreshPanel() end
 end)
@@ -48,6 +51,7 @@ FG.on("COMMODITY_SEARCH_RESULTS_UPDATED", function(_, itemID)
     end
     FG.live[itemID] = nil -- an exact search replaces older readings
     put(itemID, first.unitPrice, qty)
+    if FG.liveCheck then FG.liveCheck(itemID, first.unitPrice) end
     if FG.refreshPanel then FG.refreshPanel() end
   end
 end)
@@ -64,6 +68,7 @@ FG.on("ITEM_SEARCH_RESULTS_UPDATED", function(_, itemKey)
   if best then
     FG.live[itemKey.itemID] = nil
     put(itemKey.itemID, best, nil)
+    if FG.liveCheck then FG.liveCheck(itemKey.itemID, best) end
   end
 end)
 

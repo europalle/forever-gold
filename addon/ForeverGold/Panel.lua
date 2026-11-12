@@ -3,9 +3,9 @@
 local _, FG = ...
 
 local ROWS, ROW_H = 9, 36
-local TABS = { "sell", "make", "buy", "hold" }
-local TAB_LABEL = { sell = "Sell", make = "Make", buy = "Buy", hold = "Hold" }
-local state = { tab = "sell", offset = 0, rows = {}, autoShown = false }
+local TABS = { "signals", "sell", "make", "buy", "hold" }
+local TAB_LABEL = { signals = "Signals", sell = "Sell", make = "Make", buy = "Buy", hold = "Hold" }
+local state = { tab = "signals", offset = 0, rows = {}, autoShown = false }
 
 local function itemName(id)
   local n = C_Item and C_Item.GetItemNameByID and FG.try(C_Item.GetItemNameByID, id)
@@ -51,7 +51,22 @@ local function buildRows()
   if not d then return out end
   local l = d.lists or {}
   local calls = d.calls or {}
-  if state.tab == "sell" then
+  if state.tab == "signals" then
+    -- Strongest calls on what you have, then strong buys you can afford.
+    for _, id in ipairs(d.alerts or {}) do
+      local s = d.sig and d.sig[id]
+      if s then
+        local now = FG.priceNow(id)
+        table.insert(out, {
+          id = id,
+          title = itemName(id) .. haveText(id),
+          sub = FG.signalText(s),
+          right = FG.money(now),
+          rightSub = s.f and ("usual " .. FG.money(s.f)) or "",
+        })
+      end
+    end
+  elseif state.tab == "sell" then
     -- Only what you have: the site calls many items a sell, but you can only
     -- post what is in your bags, bank or mail (this character first).
     local mine, rest = {}, {}
@@ -107,7 +122,7 @@ function refresh()
   local l = d and d.lists or {}
   for _, key in ipairs(TABS) do
     local b = panel.tabs[key]
-    local list = key == "buy" and (l.buy or {}) or FG.ownedOnly(l[key])
+    local list = key == "signals" and (d and d.alerts or {}) or key == "buy" and (l.buy or {}) or FG.ownedOnly(l[key])
     b:SetText(TAB_LABEL[key] .. " " .. #list)
     if key == state.tab then b:LockHighlight() else b:UnlockHighlight() end
   end
@@ -126,7 +141,7 @@ function refresh()
       row:Hide()
     end
   end
-  panel.empty:SetText(state.tab == "buy" and "No deals right now." or "Nothing of yours here. Your bags, bank and mail count.")
+  panel.empty:SetText(state.tab == "buy" and "No deals right now." or state.tab == "signals" and "No strong signals right now. Most of the time the right trade is none." or "Nothing of yours here. Your bags, bank and mail count.")
   panel.empty:SetShown(#rows == 0)
   panel.more:SetText(#rows > ROWS and string.format("%d-%d of %d · scroll for more", state.offset + 1, math.min(#rows, state.offset + ROWS), #rows) or "")
 end
@@ -162,8 +177,8 @@ local function create()
   local prev
   for _, key in ipairs(TABS) do
     local b = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
-    b:SetSize(76, 22)
-    if prev then b:SetPoint("LEFT", prev, "RIGHT", 4, 0) else b:SetPoint("TOPLEFT", 18, -58) end
+    b:SetSize(62, 22)
+    if prev then b:SetPoint("LEFT", prev, "RIGHT", 3, 0) else b:SetPoint("TOPLEFT", 16, -58) end
     b:SetScript("OnClick", function()
       state.tab = key
       state.offset = 0

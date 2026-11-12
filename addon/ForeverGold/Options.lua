@@ -138,6 +138,7 @@ local function createSettings()
   end
   check("tooltip", "Show the Forever Gold block on item tooltips")
   check("chat", "Show the advice summary in chat at login")
+  check("live", "Alert in chat when the auction house shows a price far from usual")
   check("minimap", "Show the minimap button", FG.updateMinimapButton)
 
   local open = CreateFrame("Button", nil, page, "UIPanelButtonTemplate")

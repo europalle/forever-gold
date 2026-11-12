@@ -172,3 +172,40 @@ do
   check(#only == 2 and only[1] == 4232 and only[2].id == 4304, "sell, make and hold lists keep only items you have")
   print("owned filter: lists keep only items you have")
 end
+
+-- Signals: tooltip line, login alerts, live alerts at the auction house.
+do
+  ForeverGoldData = ForeverGoldData or { version = 1, generatedAt = time(), scanAt = 0, p = {} }
+  local d = ForeverGoldData
+  d.p = d.p or {}
+  d.p[2318] = { m = 90, v = 100, r = 50, d = 50 }
+  d.p[4304] = { m = 900, v = 1000, r = 50, d = 50 }
+  d.sig = {
+    [4232] = { a = "S", s = 2, c = "SQUEEZE", f = 100, e = 90, t = "Short supply: post now." },
+    [4304] = { a = "W", s = 2, c = "CRASH", f = 1000, e = 800, t = "Crashing." },
+    [2318] = { a = "B", s = 1, c = "DIP", f = 100, e = 105, t = "Dip." },
+  }
+  d.alerts = { 4232, 4304 }
+  local lines = TEST_TOOLTIP(4232)
+  check(has(lines, "Signal") and has(lines, "Strong sell") and has(lines, "short supply"), "tooltip shows the signal")
+
+  local before = #TEST_LOG
+  FireEvent("PLAYER_LOGIN")
+  local saw = false
+  for i = before + 1, #TEST_LOG do if TEST_LOG[i]:find("Strong sell") and TEST_LOG[i]:find("you have 12") then saw = true end end
+  check(saw, "login lists strong signals on what you have")
+
+  before = #TEST_LOG
+  FG_NS.liveCheck(4232, 150)
+  check(#TEST_LOG == before + 1 and TEST_LOG[#TEST_LOG]:find("50%% above usual"), "live alert: well above usual on an item you have")
+  FG_NS.liveCheck(2318, 30)
+  check(#TEST_LOG == before + 2 and TEST_LOG[#TEST_LOG]:find("70%% under usual"), "live alert: far under usual on a liquid item")
+  FG_NS.liveCheck(4304, 500)
+  check(#TEST_LOG == before + 3 and TEST_LOG[#TEST_LOG]:find("crashing: wait"), "live alert warns when the item is crashing")
+  FG_NS.liveCheck(2318, 25)
+  check(#TEST_LOG == before + 3, "one live alert per item per half hour")
+  ForeverGoldDB.settings.live = false
+  FG_NS.liveCheck(6602, 1)
+  check(#TEST_LOG == before + 3, "/fg live switches alerts off")
+  print("signals: tooltip, login alerts and live alerts")
+end

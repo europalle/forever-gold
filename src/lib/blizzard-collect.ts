@@ -129,7 +129,22 @@ export async function collectBlizzard(db: PrismaClient) {
     },
     { timeout: 60_000 },
   );
+  await storeSupply(db, lastModified, [...depth.values()]);
   const old = await db.depthSnapshot.findMany({ where: { houseId: choice.houseId }, orderBy: { lastModified: "desc" }, skip: KEEP_SNAPSHOTS, select: { id: true } });
   if (old.length) await db.depthSnapshot.deleteMany({ where: { id: { in: old.map((o) => o.id) } } });
   return { kind: "BLIZZARD" as const, scope, status: "stored" as const, scanTime: lastModified.toISOString(), items: depth.size };
+}
+
+// The longer supply history: one point about every three hours, kept 30 days.
+const SUPPLY_EVERY_MS = 2.5 * 3_600_000;
+const SUPPLY_KEEP_DAYS = 30;
+
+async function storeSupply(db: PrismaClient, at: Date, items: { itemId: number; minUnit: number; totalQty: number }[]) {
+  const lastPoint = await db.supplyPoint.findFirst({ orderBy: { at: "desc" }, select: { at: true } });
+  if (lastPoint && at.getTime() - lastPoint.at.getTime() < SUPPLY_EVERY_MS) return;
+  await db.supplyPoint.createMany({
+    data: items.map((d) => ({ itemId: d.itemId, at, minUnit: d.minUnit, totalQty: d.totalQty })),
+    skipDuplicates: true,
+  });
+  await db.supplyPoint.deleteMany({ where: { at: { lt: new Date(at.getTime() - SUPPLY_KEEP_DAYS * 86_400_000) } } });
 }
