@@ -1,42 +1,43 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { directDatabaseUrl, runtimeDatabaseUrl } from "../src/lib/database-url";
-import { createToken, passwordMatches, verifyToken } from "../src/lib/session";
+import { bootstrapPasswordMatches, createToken, verifyToken } from "../src/lib/session";
 
 describe("session", () => {
   beforeEach(() => {
     process.env.SESSION_SECRET = "a".repeat(64);
     process.env.APP_PASSWORD = "hunter2 gold";
   });
+  const me = { userId: "clx1abc", version: 3 };
 
-  it("accepts its own token and rejects tampering and expiry", async () => {
+  it("round-trips the user and version and rejects tampering and expiry", async () => {
     const now = Date.now();
-    const t = await createToken(now);
-    expect(await verifyToken(t, now)).toBe(true);
-    const [exp, sig] = t.split(".");
-    expect(await verifyToken(`${Number(exp) + 1}.${sig}`, now)).toBe(false);
-    expect(await verifyToken(`${exp}.${sig.replace(/^./, sig[0] === "0" ? "1" : "0")}`, now)).toBe(false);
-    expect(await verifyToken(t, now + 31 * 86_400_000)).toBe(false);
-    expect(await verifyToken(undefined)).toBe(false);
-    expect(await verifyToken("garbage")).toBe(false);
+    const t = await createToken(me, now);
+    expect(await verifyToken(t, now)).toEqual(me);
+    const [id, ver, exp, sig] = t.split(".");
+    expect(await verifyToken(`otheruser.${ver}.${exp}.${sig}`, now)).toBeNull();
+    expect(await verifyToken(`${id}.${Number(ver) + 1}.${exp}.${sig}`, now)).toBeNull();
+    expect(await verifyToken(`${id}.${ver}.${Number(exp) + 1}.${sig}`, now)).toBeNull();
+    expect(await verifyToken(t, now + 31 * 86_400_000)).toBeNull();
+    expect(await verifyToken(undefined)).toBeNull();
+    expect(await verifyToken("garbage")).toBeNull();
   });
 
   it("rejects tokens signed with another secret", async () => {
-    const t = await createToken();
+    const t = await createToken(me);
     process.env.SESSION_SECRET = "b".repeat(64);
-    expect(await verifyToken(t)).toBe(false);
+    expect(await verifyToken(t)).toBeNull();
   });
 
   it("refuses to run with a short secret", async () => {
     process.env.SESSION_SECRET = "short";
-    await expect(createToken()).rejects.toThrow();
-    expect(await verifyToken("1.ab")).toBe(false);
+    await expect(createToken(me)).rejects.toThrow();
   });
 
-  it("checks the password", async () => {
-    expect(await passwordMatches("hunter2 gold")).toBe(true);
-    expect(await passwordMatches("hunter2")).toBe(false);
+  it("checks the first-admin password", async () => {
+    expect(await bootstrapPasswordMatches("hunter2 gold")).toBe(true);
+    expect(await bootstrapPasswordMatches("hunter2")).toBe(false);
     delete process.env.APP_PASSWORD;
-    expect(await passwordMatches("")).toBe(false);
+    expect(await bootstrapPasswordMatches("")).toBe(false);
   });
 });
 

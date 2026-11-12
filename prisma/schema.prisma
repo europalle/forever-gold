@@ -75,3 +75,106 @@ model RegionStat {
   @@id([snapshotId, itemId])
   @@index([itemId])
 }
+
+enum Role {
+  ADMIN
+  MEMBER
+}
+
+// A person who signs in. Admins create accounts; there is no sign-up. Everyone
+// is in one guild, so everyone shares one market (src/config/player.ts).
+model User {
+  id             String    @id @default(cuid())
+  username       String    @unique // lower case
+  displayName    String
+  passwordHash   String
+  role           Role      @default(MEMBER)
+  // Bumped on password change: signs out every other session.
+  sessionVersion Int       @default(0)
+  createdAt      DateTime  @default(now())
+  lastLoginAt    DateTime?
+
+  characters Character[]
+  ledger     LedgerEntry[]
+  gold       GoldSample[]
+  uploads    Upload[]
+}
+
+// A character as TSM's file describes it. Skills come from TSM's profession
+// list, which leaves out gathering professions.
+model Character {
+  id          Int      @id @default(autoincrement())
+  userId      String
+  name        String
+  faction     String
+  realm       String // the ruleset name TSM uses, e.g. "PvP"
+  classKey    String?
+  money       Int? // copper, as of the last upload
+  professions Json     @default("{}") // { "Leatherworking": { "level": 105, "maxLevel": 150 } }
+  updatedAt   DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, name, faction, realm])
+}
+
+enum LedgerKind {
+  SALE
+  BUY
+  EXPIRED
+  CANCELLED
+  INCOME
+  EXPENSE
+}
+
+// TSM's accounting rows, kept for good: TSM trims its own history over time.
+model LedgerEntry {
+  id          Int        @id @default(autoincrement())
+  userId      String
+  kind        LedgerKind
+  realm       String
+  character   String
+  itemString  String // "" for income and expense
+  itemId      Int?
+  stackSize   Int
+  quantity    Int
+  unitPrice   Int // copper per unit, sales and buys
+  amount      Int // copper, income and expense
+  detail      String // sale or buy source, or income or expense type
+  otherPlayer String
+  time        DateTime
+  fingerprint String // identity across uploads, see fingerprints()
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, fingerprint])
+  @@index([userId, kind, time])
+  @@index([userId, itemId])
+}
+
+// TSM's gold log: a character's gold at a moment.
+model GoldSample {
+  userId    String
+  character String
+  faction   String
+  realm     String
+  at        DateTime
+  copper    Int
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, character, realm, at])
+}
+
+model Upload {
+  id      Int      @id @default(autoincrement())
+  userId  String
+  kind    String // "tsm"
+  bytes   Int
+  newRows Int
+  at      DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, kind, at])
+}

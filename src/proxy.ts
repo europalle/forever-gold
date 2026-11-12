@@ -1,14 +1,17 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { SESSION_COOKIE, verifyToken } from "./lib/session";
 
-// Send anyone without a valid session to /login. The cron endpoint has its own
-// bearer check, and /login must stay reachable.
+// Send anyone without a validly signed session to /login, and tell search
+// engines to keep out everywhere. requireUser() does the full check (account
+// still exists, session not revoked). The cron endpoint has its own bearer
+// check; /login and robots.txt must stay reachable.
 export async function proxy(request: NextRequest) {
-  const ok = await verifyToken(request.cookies.get(SESSION_COOKIE)?.value);
-  if (ok) return NextResponse.next();
-  return NextResponse.redirect(new URL("/login", request.url));
+  const claims = await verifyToken(request.cookies.get(SESSION_COOKIE)?.value);
+  const res = claims ? NextResponse.next() : NextResponse.redirect(new URL("/login", request.url));
+  res.headers.set("X-Robots-Tag", "noindex, nofollow");
+  return res;
 }
 
 export const config = {
-  matcher: ["/((?!login|api/cron|_next/static|_next/image|favicon.ico|icon).*)"],
+  matcher: ["/((?!login|robots.txt|api/cron|_next/static|_next/image|favicon.ico|icon).*)"],
 };
