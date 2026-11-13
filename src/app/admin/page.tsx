@@ -156,7 +156,7 @@ async function Admin() {
           ) : null}
         </SettingRow>
 
-        <SettingRow title="Collection" note={lastRun ? <>Last run <span className="num">{day(new Date(lastRun.at))}</span>.</> : "No run recorded yet."}>
+        <SettingRow title="Collection" note={lastRun ? <>Last run <span className="num">{day(new Date(lastRun.at))}</span>.{lastRun.running ? <span className="text-warn"> Stopped in the {lastRun.running.toLowerCase()} step, or still running.</span> : null}</> : "No run recorded yet."}>
           {lastRun ? (
             <div className="card overflow-x-auto">
               <table className="data">
@@ -165,6 +165,7 @@ async function Admin() {
                     <th>Feed</th>
                     <th>Result</th>
                     <th>Detail</th>
+                    <th className="r">Took</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -173,6 +174,7 @@ async function Admin() {
                       <td className="font-medium">{r.kind[0] + r.kind.slice(1).toLowerCase()}</td>
                       <td className={r.status === "error" ? "text-bad" : r.status === "stored" ? "text-good" : "text-muted"}>{r.status === "stored" ? "New data" : r.status === "unchanged" ? "Nothing new" : "Failed"}</td>
                       <td className="text-muted">{[r.items ? `${r.items.toLocaleString("en-US")} items` : null, r.detail].filter(Boolean).join(", ") || "-"}</td>
+                      <td className="r num text-muted">{r.ms != null ? `${(r.ms / 1000).toFixed(1)}s` : "-"}</td>
                     </tr>
                   ))}
                 </tbody>

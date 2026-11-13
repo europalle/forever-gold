@@ -20,6 +20,7 @@ export type CollectResult = {
   scanTime?: string;
   items?: number;
   detail?: string;
+  ms?: number;
 };
 
 type Fetcher = typeof fetch;
@@ -164,36 +165,48 @@ export async function collectAll(db: PrismaClient, fetcher: Fetcher = fetch): Pr
     ["BLIZZARD", "eu", () => collectBlizzard(db)],
   ];
   const out: CollectResult[] = [];
-  for (const [kind, scope, run] of jobs) {
+  const startedAt = new Date().toISOString();
+  // The run is saved after every step, so a step that hangs or is cut off
+  // still leaves what came before it, and its own name, on the Admin page.
+  const save = async (running: string | null) => {
     try {
-      out.push(await run());
-    } catch (e) {
-      out.push({ kind, scope, status: "error", detail: e instanceof Error ? e.message : String(e) });
+      const value: LastCollect = { at: startedAt, results: out, running };
+      await db.setting.upsert({ where: { key: LAST_COLLECT_KEY }, create: { key: LAST_COLLECT_KEY, value: value as never }, update: { value: value as never } });
+    } catch {
+      // Reporting must never fail a collection.
     }
-  }
+  };
+  const step = async (kind: CollectResult["kind"], scope: string, run: () => Promise<CollectResult>) => {
+    await save(kind);
+    const t = Date.now();
+    let r: CollectResult;
+    try {
+      r = await run();
+    } catch (e) {
+      r = { kind, scope, status: "error", detail: e instanceof Error ? e.message : String(e) };
+    }
+    out.push({ ...r, ms: Date.now() - t });
+  };
+  for (const [kind, scope, run] of jobs) await step(kind, scope, run);
   if (out.some((r) => r.status === "stored")) await pruneSnapshots(db);
   // Rebuild the signals after new data, or when they are over three hours old.
-  try {
+  await step("SIGNALS", "eu", async () => {
     const fresh = await db.itemSignal.findFirst({ orderBy: { at: "desc" }, select: { at: true } });
-    if (out.some((r) => r.status === "stored") || !fresh || Date.now() - fresh.at.getTime() > 3 * 3_600_000) {
-      const r = await runSignals(db);
-      out.push({ kind: "SIGNALS", scope: "eu", status: "stored", items: r.items, detail: `${r.calls} calls${r.backtest ? ", backtest refreshed" : ""}` });
-    } else {
-      out.push({ kind: "SIGNALS", scope: "eu", status: "unchanged" });
+    const ran = await db.setting.findUnique({ where: { key: SIGNALS_RAN_KEY } });
+    const ranAt = ran ? new Date(String((ran.value as { at?: string }).at)).getTime() : 0;
+    if (!out.some((r) => r.status === "stored") && (fresh ? Date.now() - fresh.at.getTime() : Date.now() - ranAt) <= 3 * 3_600_000) {
+      return { kind: "SIGNALS", scope: "eu", status: "unchanged" };
     }
-  } catch (e) {
-    out.push({ kind: "SIGNALS", scope: "eu", status: "error", detail: e instanceof Error ? e.message : String(e) });
-  }
-  // Keep the last run, so the site can show that collection is alive and what failed.
-  try {
-    const value = { at: new Date().toISOString(), results: out };
-    await db.setting.upsert({ where: { key: LAST_COLLECT_KEY }, create: { key: LAST_COLLECT_KEY, value: value as never }, update: { value: value as never } });
-  } catch {
-    // Reporting must never fail a collection.
-  }
+    const r = await runSignals(db);
+    const value = { at: new Date().toISOString(), items: r.items, calls: r.calls };
+    await db.setting.upsert({ where: { key: SIGNALS_RAN_KEY }, create: { key: SIGNALS_RAN_KEY, value }, update: { value } });
+    return { kind: "SIGNALS", scope: "eu", status: "stored", items: r.items, detail: `${r.calls} calls${r.backtest ? ", backtest refreshed" : ""}` };
+  });
+  await save(null);
   return out;
 }
 
+const SIGNALS_RAN_KEY = "signalsRan";
 export const LAST_COLLECT_KEY = "lastCollect";
-export type LastCollect = { at: string; results: CollectResult[] };
+export type LastCollect = { at: string; results: CollectResult[]; running?: string | null };
 

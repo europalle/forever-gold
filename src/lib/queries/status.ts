@@ -28,13 +28,17 @@ export async function freshness(userId: string | null): Promise<Freshness[]> {
     label: "Collected",
     at: run ? new Date(run.at) : null,
     staleAfterHours: 2,
-    hint: failed.length ? `Last run failed: ${failed.map((r) => `${r.kind} ${r.detail ?? ""}`).join("; ")}` : "The last hourly collection run",
+    hint: failed.length
+      ? `Last run failed: ${failed.map((r) => `${r.kind} ${r.detail ?? ""}`).join("; ")}`
+      : run?.running
+        ? `The last run started and has not finished: ${run.running.toLowerCase()} step`
+        : "The last hourly collection run",
   });
   return feeds.map((f) => ({
     label: f.label,
     at: f.at,
     hint: f.hint,
-    text: f.label === "Collected" && failed.length ? `${ago(f.at, now)} ago, failed` : f.label === "Signals" && !f.at && run ? "waiting for history" : f.at ? `${ago(f.at, now)} ago` : "never",
+    text: f.label === "Collected" && failed.length ? `${ago(f.at, now)} ago, failed` : f.label === "Signals" && !f.at && run ? "waiting for history" : f.at ? (ago(f.at, now) === "now" ? "just now" : `${ago(f.at, now)} ago`) : "never",
     stale: !f.at || now - f.at.getTime() > f.staleAfterHours * 3_600_000 || (f.label === "Collected" && failed.length > 0),
   }));
 }

@@ -9,6 +9,7 @@ const OAUTH = process.env.BNET_OAUTH_URL || "https://oauth.battle.net/token";
 const API = process.env.BNET_API_BASE || "https://eu.api.blizzard.com";
 const NS = "dynamic-forever-eu";
 const LOCALE = "en_GB";
+const TIMEOUT_MS = 60_000; // a listing is about 9 MB; a stuck request must not hold the whole run
 
 export const blizzardConfigured = () => !!(process.env.BNET_CLIENT_ID && process.env.BNET_CLIENT_SECRET);
 
@@ -27,6 +28,7 @@ async function accessToken(): Promise<string> {
     },
     body: "grant_type=client_credentials",
     cache: "no-store",
+    signal: AbortSignal.timeout(20_000),
   });
   if (!res.ok) throw new Error(`Battle.net login refused (${res.status}): check the client ID and secret`);
   const j = (await res.json()) as { access_token?: string; expires_in?: number };
@@ -42,7 +44,7 @@ async function get<T>(path: string, ifModifiedSince?: Date | null): Promise<ApiR
   const headers: Record<string, string> = { Authorization: `Bearer ${await accessToken()}`, "Accept-Encoding": "gzip" };
   if (ifModifiedSince) headers["If-Modified-Since"] = ifModifiedSince.toUTCString();
   for (let attempt = 0; ; attempt++) {
-    const res = await fetch(url, { headers, cache: "no-store" });
+    const res = await fetch(url, { headers, cache: "no-store", signal: AbortSignal.timeout(TIMEOUT_MS) });
     const lm = res.headers.get("last-modified");
     const lastModified = lm ? new Date(lm) : null;
     if (res.status === 304) return { status: 304, data: null, lastModified, bytes: 0 };

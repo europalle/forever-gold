@@ -1,3 +1,4 @@
+import { after } from "next/server";
 import { collectAll } from "@/lib/collector";
 import { cronAuthorized } from "@/lib/cron-auth";
 import { db } from "@/lib/db";
@@ -16,7 +17,17 @@ export async function GET(request: Request) {
   if (!cronAuthorized(request.headers.get("authorization"), process.env.CRON_SECRET)) {
     return Response.json({ error: "Authorization header does not match CRON_SECRET" }, { status: 401 });
   }
-  const results = await collectAll(db);
-  const failed = results.some((r) => r.status === "error");
-  return Response.json({ results }, { status: failed ? 502 : 200 });
+  // cron-job.org gives up after 30 seconds and switches a job off after
+  // repeated failures, and a run with Blizzard's listings takes longer. So the
+  // scheduler gets its answer at once and the work carries on after it; the
+  // result is on the Admin page. "?wait=1" runs it inline, for a manual check.
+  if (new URL(request.url).searchParams.get("wait") === "1") {
+    const results = await collectAll(db);
+    const failed = results.some((r) => r.status === "error");
+    return Response.json({ results }, { status: failed ? 502 : 200 });
+  }
+  after(async () => {
+    await collectAll(db);
+  });
+  return Response.json({ started: true, note: "Collecting in the background. Results: Admin page, Collection." }, { status: 202 });
 }
