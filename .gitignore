@@ -48,3 +48,4 @@ next-env.d.ts
 
 # generated Prisma client (rebuilt by postinstall)
 /src/generated/
+.taste-skill/

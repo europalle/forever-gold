@@ -20,7 +20,7 @@ export function PairForm() {
           <input ref={ref} readOnly value={state.code} aria-label="Pairing code" onFocus={(e) => e.target.select()} className={`${input} num flex-1 text-sm`} />
           <button
             type="button"
-            className="rounded border border-line px-3 py-2 text-sm hover:border-gold"
+            className="btn"
             onClick={async () => {
               try {
                 await navigator.clipboard.writeText(state.code!);

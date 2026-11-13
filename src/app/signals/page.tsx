@@ -3,17 +3,18 @@ import { connection } from "next/server";
 import { Suspense } from "react";
 import { Header } from "@/components/header";
 import { requireUser } from "@/lib/auth";
-import { formatCopper, formatPercent } from "@/lib/money";
+import { formatPercent } from "@/lib/money";
 import { signalBoard, type SignalRow } from "@/lib/queries/signals";
-import { ACTION_LABEL, CONDITION_LABEL, actionClass } from "@/lib/signal-labels";
+import { ACTION_LABEL, CONDITION_LABEL } from "@/lib/signal-labels";
+import { ActionTag, Card, Empty, How, Money, PageTitle } from "@/components/ui";
 
 export const metadata = { title: "Signals · Forever Gold" };
 
 export default function SignalsPage() {
   return (
-    <main className="mx-auto max-w-6xl px-4 py-8">
+    <main className="mx-auto max-w-[1360px] px-4 pb-16 sm:px-8">
       <Header active="signals" />
-      <Suspense fallback={<p className="mt-8 text-muted">Loading…</p>}>
+      <Suspense fallback={<div className="pt-7" aria-busy="true"><div className="skeleton h-8 w-40" /><div className="skeleton mt-6 h-40" /><div className="mt-6 grid gap-6 lg:grid-cols-3"><div className="skeleton h-72" /><div className="skeleton h-72" /><div className="skeleton h-72" /></div></div>}>
         <Signals />
       </Suspense>
     </main>
@@ -24,60 +25,68 @@ async function Signals() {
   await connection();
   const me = await requireUser();
   const b = await signalBoard(me.id);
+  const strong = b.mine.filter((r) => r.strength === 2).length;
+  const total = Object.values(b.counts).reduce((a, x) => a + x, 0);
+  const finding = !b.at
+    ? "No calls yet: they need a day and a half of price history."
+    : strong
+      ? `${strong} strong ${strong === 1 ? "call" : "calls"} on what you hold. ${total} calls across the market, rebuilt ${timeAgo(b.at)}.`
+      : `${total} calls across the market, none strong on what you hold. Rebuilt ${timeAgo(b.at)}.`;
   return (
-    <div className="mt-6 space-y-10">
-      <p className="max-w-prose text-sm text-muted">
-        Every item that trades is read like a commodity: its price against its own last week, how many are listed against
-        normal, and which way both are moving. Calls are rebuilt every hour after the prices come in and land in game with the
-        next advice. <Link href="#how" className="text-gold">How the calls work</Link>.
-        {b.at ? <> Last built {timeAgo(b.at)}.</> : <> No calls yet: they need a day and a half of history.</>}
-      </p>
+    <>
+      <PageTitle title="Signals" action={<How label="How the calls work"><HowBody /></How>}>
+        {finding}
+      </PageTitle>
 
-      <Block title="Your stock" note="Calls on what you have in bags, bank and mail, strongest first." rows={b.mine} empty="Nothing you hold has a call right now." showHave />
-      <Block title="Strong buys" note={`Calls to buy at or under ${formatCopper(b.cap)} each (10% of your gold).`} rows={b.buys} empty="No buys right now. That is normal: most of the time the right trade is none." />
-      <Block title="Crashing and flooded" note="Don't sell into these, and don't catch them while they still fall." rows={b.storms} empty="Nothing crashing or flooded." />
-      <Block title="Short supply" note="Listings dried up and the price jumped: post what you have before farmers refill it." rows={b.squeezes} empty="No shortages." />
-      <Block title="Strong sells" note="Spikes and steady slides across the market." rows={b.sells} empty="No strong sells." />
+      <Column title="Your stock" note="Bags, bank and mail." rows={b.mine} empty="Nothing you hold has a call right now." showHave wide />
+
+      <div className="mt-6 grid gap-6 lg:grid-cols-3">
+        <Column title="Buy" note={<>Within your limit of <Money c={b.cap} /> each.</>} rows={b.buys} empty="No buys." />
+        <Column title="Sell into" note="Shortages, spikes, slides." rows={dedupe([...b.squeezes, ...b.sells])} empty="No shortages, spikes or slides." />
+        <Column title="Stay out" note="Crashing and flooded." rows={b.storms.filter((r) => r.action !== "buy")} empty="Nothing crashing or flooded." />
+      </div>
 
       <Scoreboard sb={b.scoreboard} />
-      <How />
-    </div>
+    </>
   );
 }
 
-function Block({ title, note, rows, empty, showHave }: { title: string; note: string; rows: SignalRow[]; empty: string; showHave?: boolean }) {
+function dedupe(rows: SignalRow[]) {
+  const seen = new Set<number>();
+  return rows.filter((r) => !seen.has(r.itemId) && seen.add(r.itemId));
+}
+
+const SHOW = 8;
+
+function Column({ title, note, rows, empty, showHave, wide }: { title: string; note: React.ReactNode; rows: SignalRow[]; empty: string; showHave?: boolean; wide?: boolean }) {
   return (
-    <section>
-      <h2 className="text-lg font-semibold">{title}</h2>
-      <p className="text-sm text-muted">{note}</p>
+    <Card title={<>{title} <span className="num ml-1 font-normal text-muted">{rows.length}</span></>} note={note} className="rise rise-2">
       {rows.length === 0 ? (
-        <p className="mt-3 text-sm text-muted">{empty}</p>
+        <Empty>{empty}</Empty>
       ) : (
-        <ul className="mt-3 divide-y divide-line rounded border border-line">
-          {rows.map((r) => (
-            <li key={r.itemId} className="grid gap-x-4 gap-y-1 px-3 py-2.5 sm:grid-cols-[minmax(0,1fr)_auto]">
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-baseline gap-2">
-                  <span className={`rounded border px-1.5 text-xs uppercase tracking-wide ${actionClass(r.action, r.strength)}`}>
-                    {r.strength === 2 ? "Strong " : ""}
-                    {ACTION_LABEL[r.action]}
-                  </span>
-                  <Link href={`/item/${r.itemId}`} className="font-medium hover:text-gold">{r.name}</Link>
-                  <span className="text-xs text-muted">{CONDITION_LABEL[r.condition]}</span>
-                  {showHave && r.have > 0 ? <span className="text-xs text-muted">you have {r.have}</span> : null}
-                </div>
-                <p className="mt-0.5 text-sm text-muted">{r.reason}</p>
+        <ul className={`rows ${wide ? "lg:grid lg:grid-cols-2 lg:[&>*:nth-child(2)]:border-t-0 lg:[&>*:nth-child(odd)]:border-r lg:[&>*:nth-child(odd)]:border-rule" : ""}`}>
+          {rows.slice(0, wide ? 12 : SHOW).map((r) => (
+            <li key={r.itemId} className="px-4 py-3">
+              <div className="flex items-baseline justify-between gap-3">
+                <span className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
+                  <ActionTag action={r.action} strength={r.strength} />
+                  <Link href={`/item/${r.itemId}`} className="truncate font-medium hover:underline">{r.name}</Link>
+                  {showHave && r.have > 0 ? <span className="text-xs text-muted">x{r.have}</span> : null}
+                </span>
+                <span className="text-xs text-muted">{CONDITION_LABEL[r.condition]}</span>
               </div>
-              <dl className="grid grid-cols-3 gap-x-4 text-right text-sm sm:w-80">
-                <Fig label="Now">{formatCopper(r.price)}</Fig>
-                <Fig label="Usual">{formatCopper(r.fair)}</Fig>
-                <Fig label="In 24h">{formatCopper(r.expected)}</Fig>
+              <p className="mt-1 text-sm text-muted">{r.reason}</p>
+              <dl className="mt-2 flex gap-6 text-sm">
+                <Fig label="Now"><Money c={r.price} /></Fig>
+                <Fig label="Usual"><Money c={r.fair} className="text-muted" /></Fig>
+                <Fig label="In 24h"><Money c={r.expected} className="text-muted" /></Fig>
               </dl>
             </li>
           ))}
         </ul>
       )}
-    </section>
+      {rows.length > (wide ? 12 : SHOW) ? <p className="border-t border-rule px-4 py-2.5 text-xs text-muted">And {rows.length - (wide ? 12 : SHOW)} more, weaker or less traded.</p> : null}
+    </Card>
   );
 }
 
@@ -85,21 +94,16 @@ function Fig({ label, children }: { label: string; children: React.ReactNode }) 
   return (
     <div>
       <dt className="text-xs text-muted">{label}</dt>
-      <dd className="num">{children}</dd>
+      <dd>{children}</dd>
     </div>
   );
 }
 
 function Scoreboard({ sb }: { sb: Awaited<ReturnType<typeof signalBoard>>["scoreboard"] }) {
   return (
-    <section>
-      <h2 className="text-lg font-semibold">Track record</h2>
-      <p className="max-w-prose text-sm text-muted">
-        Don&apos;t trust a call until this says it works. The replay runs the rules over the last two weeks of the 400 most
-        traded items as if it were back then, and checks each new call 72 hours later, after the 5% cut. A buy counts as right
-        if selling then nets more than it cost; a sell, if the price was not higher later; a hold, if it fell under 5%; a wait,
-        if it got cheaper within the day.
-      </p>
+    <section className="card mt-6 p-4">
+      <h2 className="card-title">Track record</h2>
+      <p className="mt-0.5 text-sm text-muted" title="A buy is right if selling 72h later nets more than it cost after the 5% cut; a sell, if the price was not higher; a hold, if it fell under 5%; a wait, if it got cheaper within a day.">Rules replayed over two weeks of the 400 most traded items, each call judged 72h later after the cut.</p>
       {!sb ? (
         <p className="mt-3 text-sm text-muted">Not run yet.</p>
       ) : (
@@ -161,7 +165,7 @@ function Scoreboard({ sb }: { sb: Awaited<ReturnType<typeof signalBoard>>["score
   );
 }
 
-function How() {
+function HowBody() {
   const cases: [string, string, string][] = [
     ["Flooded", "Oil glut 2014-16; the hog cycle", "Listed units far above their weekly normal and still climbing. High prices pulled farmers in and supply overshot. Hold yours; don't post into it."],
     ["Crashing", "Flash crashes and capitulation", "Down 20% or more in a day. While supply still rises it is a falling knife: wait. Once supply shrinks and the price holds, sellers are done and a liquid item tends to rebound: buy."],
@@ -172,9 +176,8 @@ function How() {
     ["Rising", "Time-series momentum", "Climbing steadily while supply thins. Let it run before you post."],
   ];
   return (
-    <section id="how">
-      <h2 className="text-lg font-semibold">How the calls work</h2>
-      <p className="max-w-prose text-sm text-muted">
+    <div>
+      <p>
         The usual price is the median of the cheapest listing over the last week. Supply is the number of units listed, from
         Blizzard&apos;s hourly listing, against its own weekly median: the way oil traders read stockpiles against their
         average. EU sales only decide whether an item is liquid (5+ sold a day, 20%+ of listings sell): items that hardly sell
@@ -182,8 +185,8 @@ function How() {
       </p>
       <dl className="mt-4 grid gap-3 md:grid-cols-2">
         {cases.map(([name, real, text]) => (
-          <div key={name} className="rounded border border-line p-3">
-            <dt className="font-medium">
+          <div key={name} className="border-t border-rule pt-3">
+            <dt className="font-medium text-text">
               {name} <span className="text-xs font-normal text-muted">· {real}</span>
             </dt>
             <dd className="mt-1 text-sm text-muted">{text}</dd>
@@ -194,7 +197,7 @@ function How() {
         Size every buy small: no single buy above a few percent of your gold, and never into a flood. A call is a reading of
         the market, not a promise.
       </p>
-    </section>
+    </div>
   );
 }
 

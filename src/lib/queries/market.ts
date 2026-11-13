@@ -205,3 +205,29 @@ export async function itemDetail(id: number, userId: string): Promise<ItemDetail
     mine,
   };
 }
+
+// A week of the cheapest price per item, oldest first, for the row sparklines.
+export async function sparks(ids: number[], days = 7): Promise<Map<number, number[]>> {
+  const out = new Map<number, number[]>();
+  if (!ids.length) return out;
+  const since = new Date(Date.now() - days * 86_400_000);
+  const rows = await db.$queryRaw<{ itemId: number; v: number }[]>`
+    SELECT mp."itemId", mp."minBuyout" AS v
+    FROM "MarketPrice" mp JOIN "Snapshot" s ON s.id = mp."snapshotId"
+    WHERE s.kind = 'MARKET' AND s.scope = ${marketScope(MARKET)} AND s."sourceUpdatedAt" >= ${since}
+      AND mp."minBuyout" IS NOT NULL AND mp."itemId" = ANY(${ids})
+    ORDER BY s."sourceUpdatedAt"`;
+  for (const r of rows) {
+    const a = out.get(r.itemId);
+    if (a) a.push(r.v);
+    else out.set(r.itemId, [r.v]);
+  }
+  return out;
+}
+
+// Item quality (0 poor to 4 epic) where a member's addon has looked the item up.
+export async function qualities(ids: number[]): Promise<Map<number, number>> {
+  if (!ids.length) return new Map();
+  const rows = await db.itemInfo.findMany({ where: { id: { in: ids }, quality: { not: null } }, select: { id: true, quality: true } });
+  return new Map(rows.map((r) => [r.id, r.quality!]));
+}

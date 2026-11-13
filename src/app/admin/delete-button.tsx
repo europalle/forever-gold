@@ -11,7 +11,7 @@ export function DeleteButton({ id, name }: { id: string; name: string }) {
       }}
     >
       <input type="hidden" name="id" value={id} />
-      <button type="submit" className="rounded border border-line px-2 py-1 text-xs text-bad hover:border-bad">
+      <button type="submit" className="btn btn-small btn-danger">
         Delete
       </button>
     </form>

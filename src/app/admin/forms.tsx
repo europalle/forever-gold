@@ -34,7 +34,7 @@ export function InviteForm() {
       {state.link ? (
         <div className="flex flex-wrap items-center gap-2">
           <input ref={linkRef} readOnly value={state.link} aria-label="Invite link" onFocus={(e) => e.target.select()} className={`${input} num flex-1 text-sm`} />
-          <button type="button" className="rounded border border-line px-3 py-2 text-sm hover:border-gold" onClick={() => void copy(state.link!)}>
+          <button type="button" className="btn" onClick={() => void copy(state.link!)}>
             {copied?.link === state.link ? (copied.how === "copied" ? "Copied" : "Press Ctrl+C") : "Copy"}
           </button>
         </div>
@@ -49,7 +49,7 @@ export function ResetForm({ id }: { id: string }) {
     <form action={action} className="flex flex-wrap items-center gap-2">
       <input type="hidden" name="id" value={id} />
       <input name="password" required minLength={10} placeholder="New password" aria-label="New password" className={`${input} max-w-48 py-1 text-sm`} />
-      <button type="submit" disabled={pending} className="rounded border border-line px-2 py-1 text-xs text-muted hover:text-text">
+      <button type="submit" disabled={pending} className="btn btn-small">
         Reset
       </button>
       <Message state={state} />

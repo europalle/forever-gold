@@ -54,9 +54,9 @@ export function TsmUpload() {
   }
 
   return (
-    <div className="rounded border border-line bg-panel p-3 text-sm">
-      <label className="flex flex-wrap items-center gap-3">
-        <span className="rounded bg-gold px-3 py-2 font-medium text-bg">{busy ? "Reading…" : "Upload a saved file"}</span>
+    <div className="flex flex-col items-end gap-1">
+      <label title="TradeSkillMaster.lua or ForeverGold.lua from WTF\\Account\\<account>\\SavedVariables, after logging out. The app does this for you.">
+        <span className="btn cursor-pointer">{busy ? "Reading…" : "Upload a saved file"}</span>
         <input
           type="file"
           accept=".lua"
@@ -67,14 +67,9 @@ export function TsmUpload() {
             e.target.value = "";
           }}
         />
-        <span className="text-muted">
-          <code className="text-text">TradeSkillMaster.lua</code> or <code className="text-text">ForeverGold.lua</code>, from{" "}
-          <code className="text-text">World of Warcraft\_forever_\WTF\Account\&lt;account&gt;\SavedVariables</code>. Log out first
-          so it is current. The helper program does this for you.
-        </span>
       </label>
-      {msg.ok ? <p className="mt-2 text-good">{msg.ok}</p> : null}
-      {msg.error ? <p className="mt-2 text-bad">{msg.error}</p> : null}
+      {msg.ok ? <p className="text-xs text-good">{msg.ok}</p> : null}
+      {msg.error ? <p className="text-xs text-bad">{msg.error}</p> : null}
     </div>
   );
 }

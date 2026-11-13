@@ -6,6 +6,7 @@ import { requireUser } from "@/lib/auth";
 import { formatCopper, formatPercent } from "@/lib/money";
 import { disenchantResearch, trainerResearch, vendorResearch, yieldResearch } from "@/lib/queries/research";
 import type { Drop } from "@/lib/research";
+import { Card, Money, PageTitle, Tabs } from "@/components/ui";
 
 export const metadata = { title: "Research · Forever Gold" };
 
@@ -23,9 +24,9 @@ type SP = Promise<{ tab?: string }>;
 
 export default function ResearchPage({ searchParams }: { searchParams: SP }) {
   return (
-    <main className="mx-auto max-w-6xl px-4 py-8">
+    <main className="mx-auto max-w-[1360px] px-4 pb-16 sm:px-8">
       <Header active="research" />
-      <Suspense fallback={<p className="mt-8 text-muted">Loading…</p>}>
+      <Suspense fallback={<div className="pt-7" aria-busy="true"><div className="skeleton h-8 w-40" /><div className="skeleton mt-6 h-96" /></div>}>
         <Research searchParams={searchParams} />
       </Suspense>
     </main>
@@ -38,37 +39,31 @@ async function Research({ searchParams }: { searchParams: SP }) {
   const { tab: raw } = await searchParams;
   const tab = TABS.some(([k]) => k === raw) ? raw! : "disenchant";
   return (
-    <div className="mt-6">
-      <p className="max-w-prose text-sm text-muted">
-        What the guild&apos;s addons recorded while playing: loot windows, disenchants, vendors and trainers. Pooled across
-        everyone, so it gets better the more people run the addon. Shares are the share of loot windows that held the item.
-      </p>
-      <nav className="mt-4 flex flex-wrap gap-2 text-sm">
-        {TABS.map(([k, label]) => (
-          <Link key={k} href={`/research?tab=${k}`} className={`rounded border px-3 py-1.5 ${k === tab ? "border-gold text-gold" : "border-line text-muted hover:text-text"}`}>
-            {label}
-          </Link>
-        ))}
-      </nav>
-      <div className="mt-5">
+    <>
+      <PageTitle title="Research">Drop and disenchant rates, vendor prices and trainer costs, pooled from the guild&apos;s addons.</PageTitle>
+      <Tabs items={TABS.map(([k, label]) => ({ href: `/research?tab=${k}`, label, on: k === tab }))} />
+      <div className="rise rise-2 mt-5">
         {tab === "disenchant" ? <Disenchant /> : tab === "vendors" ? <Vendors /> : tab === "trainers" ? <Trainers /> : <Yields kind={tab} />}
       </div>
-    </div>
+    </>
   );
 }
 
 const QUALITY = ["Poor", "Common", "Uncommon", "Rare", "Epic", "Legendary"];
-const qualityColor = ["text-muted", "text-text", "text-good", "text-[#5a95e0]", "text-[#a335ee]", "text-warn"];
+const qualityColor = ["text-muted", "text-text", "text-[#1eff00]", "text-[#3a8dff]", "text-[#b048f8]", "text-warn"];
 
+// Each drop: how often it shows up, as a bar, and how many at a time.
 function Drops({ drops, names }: { drops: Drop[]; names: Map<number, string> }) {
   return (
-    <ul className="mt-2 space-y-0.5 text-sm">
+    <ul className="px-4 pb-4">
       {drops.slice(0, 8).map((d) => (
-        <li key={d.itemId} className="flex justify-between gap-3">
-          <Link href={`/item/${d.itemId}`} className="hover:text-gold">{names.get(d.itemId) ?? `Item ${d.itemId}`}</Link>
-          <span className="num text-muted">
-            {formatPercent(d.share)} · avg {d.avgQty.toFixed(1)}
+        <li key={d.itemId} className="grid h-7 grid-cols-[minmax(0,1fr)_5rem_2.75rem_2.5rem] items-center gap-3">
+          <Link href={`/item/${d.itemId}`} className="truncate hover:underline">{names.get(d.itemId) ?? `Item ${d.itemId}`}</Link>
+          <span className="h-1.5 rounded-sm bg-raised">
+            <span className="block h-1.5 rounded-sm bg-gold" style={{ width: `${Math.min(100, d.share * 100)}%` }} />
           </span>
+          <span className="num text-right">{formatPercent(d.share)}</span>
+          <span className="num text-right text-muted" title="Average per drop">x{d.avgQty.toFixed(1)}</span>
         </li>
       ))}
     </ul>
@@ -77,9 +72,7 @@ function Drops({ drops, names }: { drops: Drop[]; names: Map<number, string> }) 
 
 function Empty({ what }: { what: string }) {
   return (
-    <p className="text-muted">
-      Nothing recorded yet. {what} with addon 0.2.0 or newer, then /reload or log out so the helper uploads it.
-    </p>
+    <p className="text-muted">Nothing recorded yet. {what}, then /reload or log out so the app uploads it.</p>
   );
 }
 
@@ -88,18 +81,16 @@ async function Disenchant() {
   if (!table.length) return <Empty what={total ? "Item details for the disenchanted items are still coming in. Keep playing" : "Disenchant some greens"} />;
   return (
     <>
-      <p className="mb-3 text-sm text-muted">{total} disenchants recorded. Grouped by the item&apos;s quality, armor or weapon, and required level.</p>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <p className="mb-3 text-sm text-muted"><span className="num text-text">{total}</span> disenchants</p>
+      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
         {table.map((g) => (
-          <section key={`${g.quality}${g.type}${g.bracket}`} className="rounded border border-line bg-panel p-3">
-            <h3 className="flex justify-between text-sm">
-              <span>
-                <span className={qualityColor[g.quality]}>{QUALITY[g.quality]}</span> {g.type}, level {g.bracket}
-              </span>
-              <span className="num text-muted">{g.n}</span>
-            </h3>
+          <Card
+            key={`${g.quality}${g.type}${g.bracket}`}
+            title={<><span className={qualityColor[g.quality]}>{QUALITY[g.quality]}</span> {g.type.toLowerCase()}, level {g.bracket}</>}
+            action={<span className="num text-muted" title="Disenchants recorded">{g.n}</span>}
+          >
             <Drops drops={g.drops} names={names} />
-          </section>
+          </Card>
         ))}
       </div>
     </>
@@ -112,21 +103,17 @@ async function Yields({ kind }: { kind: string }) {
   if (!table.length) return <Empty what={what} />;
   return (
     <>
-      <p className="mb-3 text-sm text-muted">
-        {total} recorded. Per mob or node, most-sampled first. Mob names show when the mob was targeted.
-      </p>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <p className="mb-3 text-sm text-muted"><span className="num text-text">{total}</span> recorded, most sampled first</p>
+      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
         {table.map((m) => (
-          <section key={m.npcId} className="rounded border border-line bg-panel p-3">
-            <h3 className="flex justify-between gap-2 text-sm">
-              <span className="font-medium">
-                {m.name ?? `NPC ${m.npcId}`}
-                {m.levels ? <span className="text-muted"> · level {m.levels[0] === m.levels[1] ? m.levels[0] : `${m.levels[0]}-${m.levels[1]}`}</span> : null}
-              </span>
-              <span className="num text-muted">{m.n}</span>
-            </h3>
+          <Card
+            key={m.npcId}
+            title={m.name ?? `NPC ${m.npcId}`}
+            note={m.levels ? `Level ${m.levels[0] === m.levels[1] ? m.levels[0] : `${m.levels[0]}-${m.levels[1]}`}` : undefined}
+            action={<span className="num text-muted" title="Times recorded">{m.n}</span>}
+          >
             <Drops drops={m.drops} names={names} />
-          </section>
+          </Card>
         ))}
       </div>
     </>
@@ -138,21 +125,20 @@ async function Vendors() {
   if (!items) return <Empty what="Open some vendors" />;
   return (
     <>
-      <p className="mb-3 max-w-prose text-sm text-muted">
-        {vendors} vendors, {items} items recorded. These sell for less than the cheapest auction house listing pays after the cut.
-        Limited stock restocks slowly; check that the item really sells before buying many.
+      <p className="mb-3 text-sm text-muted">
+        <span className="num text-text">{vendors}</span> vendors, <span className="num text-text">{items}</span> items. Cheaper at the vendor than the auction house pays after the cut.
       </p>
       {flips.length ? (
-        <ul className="divide-y divide-line rounded border border-line text-sm">
+        <ul className="card rows text-sm">
           {flips.map((f) => (
             <li key={f.itemId} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-3 py-2">
               <span>
-                <Link href={`/item/${f.itemId}`} className="font-medium hover:text-gold">{names.get(f.itemId) ?? `Item ${f.itemId}`}</Link>
+                <Link href={`/item/${f.itemId}`} className="font-medium hover:underline">{names.get(f.itemId) ?? `Item ${f.itemId}`}</Link>
                 <span className="text-muted"> · {f.vendor ?? "vendor"}{f.stock != null && f.stock >= 0 ? ` · ${f.stock} in stock` : ""}</span>
               </span>
               <span className="num">
-                {formatCopper(f.unitCost)} <span className="text-muted">to</span> {formatCopper(f.cheapest)}{" "}
-                <span className="text-good">+{formatCopper(f.profit)}</span>
+                <Money c={f.unitCost} /> <span className="text-muted">to</span> <Money c={f.cheapest} />{" "}
+                <span className="text-good">+<Money c={f.profit} /></span>
               </span>
             </li>
           ))}
@@ -168,11 +154,11 @@ async function Trainers() {
   const services = await trainerResearch();
   if (!services.length) return <Empty what="Talk to some profession trainers" />;
   return (
-    <ul className="divide-y divide-line rounded border border-line text-sm">
+    <ul className="card rows text-sm">
       {services.map((s) => (
         <li key={`${s.npcId}${s.name}`} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-3 py-2">
           <span>
-            {s.itemId ? <Link href={`/item/${s.itemId}`} className="hover:text-gold">{s.name}</Link> : s.name}
+            {s.itemId ? <Link href={`/item/${s.itemId}`} className="hover:underline">{s.name}</Link> : s.name}
             <span className="text-muted">
               {" "}
               · {s.skill ?? "?"} {s.skillLevel ?? ""}

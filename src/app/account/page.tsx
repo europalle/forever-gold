@@ -7,14 +7,15 @@ import { db } from "@/lib/db";
 import { PairForm } from "./pair-form";
 import { PasswordForm } from "./password-form";
 import { UsernameForm } from "./username-form";
+import { PageTitle, SettingRow } from "@/components/ui";
 
 export const metadata = { title: "Account · Forever Gold" };
 
 export default function AccountPage() {
   return (
-    <main className="mx-auto max-w-6xl px-4 py-8">
+    <main className="mx-auto max-w-[1360px] px-4 pb-16 sm:px-8">
       <Header active="account" />
-      <Suspense fallback={<p className="mt-8 text-muted">Loading…</p>}>
+      <Suspense fallback={<div className="pt-7" aria-busy="true"><div className="skeleton h-8 w-40" /><div className="skeleton mt-6 h-96" /></div>}>
         <Account />
       </Suspense>
     </main>
@@ -25,67 +26,73 @@ async function Account() {
   await connection();
   const me = await requireUser();
   const devices = await db.device.findMany({ where: { userId: me.id }, orderBy: { createdAt: "asc" } });
+  const day = (d: Date | null) => (d ? d.toISOString().slice(0, 16).replace("T", " ") + " UTC" : "never");
   return (
-    <div className="mt-6 space-y-8">
-      <section>
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">Signed in as</h2>
-        <p className="mt-1">
-          {me.displayName} <span className="text-muted">({me.username}, {me.role === "ADMIN" ? "admin" : "member"})</span>
-        </p>
-      </section>
-      <section>
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted">Username</h2>
-        <UsernameForm current={me.displayName} />
-      </section>
-      <section>
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted">Password</h2>
-        <PasswordForm />
-      </section>
-      <section>
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted">Helper program</h2>
-        <ol className="mb-4 max-w-prose list-decimal space-y-1 pl-5 text-sm text-muted">
-          <li>
-            <a href="/api/download/ForeverGold-addon.zip" className="text-gold hover:underline">Download the addon</a> and unzip it
-            into <code className="text-text">World of Warcraft\_forever_\Interface\AddOns</code>, so there is a{" "}
-            <code className="text-text">ForeverGold</code> folder there.
-          </li>
-          <li>
-            <a href="/api/download/ForeverGold.msi" className="text-gold hover:underline">Download the Forever Gold app</a> (Windows)
-            and install it. Windows may say it protected your PC because the installer is not signed: choose More info, then Run
-            anyway. It adds Forever Gold to the Start menu and the desktop.
-          </li>
-          <li>Open Forever Gold, make a pairing code below and paste it in. It finds your WoW folder itself, or asks.</li>
-          <li>
-            Leave it running while you play: it sits in the tray by the clock as a gold coin. Your advice shows in game after a
-            /reload or your next login.
-          </li>
-        </ol>
-        <p className="mb-3 max-w-prose text-sm text-muted">
-          The app only uploads <code className="text-text">ForeverGold.lua</code> and{" "}
-          <code className="text-text">TradeSkillMaster.lua</code> when the game saves them, and writes the addon&apos;s advice
-          file. It never touches the game itself.
-        </p>
-        {devices.length ? (
-          <ul className="mb-4 max-w-xl divide-y divide-line rounded border border-line text-sm">
-            {devices.map((d) => (
-              <li key={d.id} className="flex items-center justify-between gap-3 px-3 py-2">
-                <span>
-                  {d.name}{" "}
-                  <span className="text-muted">
-                    · paired {d.createdAt.toISOString().slice(0, 10)} · last seen{" "}
-                    {d.lastSeenAt ? d.lastSeenAt.toISOString().slice(0, 16).replace("T", " ") + " UTC" : "never"}
-                  </span>
-                </span>
-                <form action={removeDevice}>
-                  <input type="hidden" name="id" value={d.id} />
-                  <button type="submit" className="rounded border border-line px-2 py-1 text-xs text-muted hover:text-text">Disconnect</button>
-                </form>
-              </li>
-            ))}
-          </ul>
-        ) : null}
-        <PairForm />
-      </section>
-    </div>
+    <>
+      <PageTitle title="Account">
+        {me.displayName}, {me.role === "ADMIN" ? "admin" : "member"}. {devices.length ? `${devices.length} paired ${devices.length === 1 ? "PC" : "PCs"}.` : "No PC paired yet."}
+      </PageTitle>
+      <div className="border-t border-line">
+        <SettingRow
+          title="App and addon"
+          note={
+            <ol className="list-decimal space-y-1 pl-4">
+              <li>Unzip the addon into <span className="text-text">_forever_\Interface\AddOns</span>.</li>
+              <li>Install the app. Windows warns because it is unsigned: More info, Run anyway.</li>
+              <li>Make a pairing code here and paste it into the app.</li>
+            </ol>
+          }
+        >
+          <div className="card p-4">
+            <div className="flex flex-wrap gap-2">
+              <a href="/api/download/ForeverGold.msi" className="btn btn-primary">Download the app (.msi)</a>
+              <a href="/api/download/ForeverGold-addon.zip" className="btn">Download the addon (.zip)</a>
+            </div>
+            <div className="mt-4">
+              <PairForm />
+            </div>
+          </div>
+          {devices.length ? (
+            <div className="card mt-4 overflow-x-auto">
+              <table className="data">
+                <thead>
+                  <tr>
+                    <th>PC</th>
+                    <th>Paired</th>
+                    <th>Last seen</th>
+                    <th />
+                  </tr>
+                </thead>
+                <tbody>
+                  {devices.map((d) => (
+                    <tr key={d.id}>
+                      <td className="font-medium">{d.name}</td>
+                      <td className="num text-muted">{d.createdAt.toISOString().slice(0, 10)}</td>
+                      <td className="num text-muted">{day(d.lastSeenAt)}</td>
+                      <td className="r">
+                        <form action={removeDevice}>
+                          <input type="hidden" name="id" value={d.id} />
+                          <button type="submit" className="btn btn-small">Disconnect</button>
+                        </form>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : null}
+        </SettingRow>
+        <SettingRow title="Username" note={<>Signs you in and shows in the top bar.</>}>
+          <div className="card p-4">
+            <UsernameForm current={me.displayName} />
+          </div>
+        </SettingRow>
+        <SettingRow title="Password" note="Changing it signs out your other browsers.">
+          <div className="card p-4">
+            <PasswordForm />
+          </div>
+        </SettingRow>
+      </div>
+    </>
   );
 }

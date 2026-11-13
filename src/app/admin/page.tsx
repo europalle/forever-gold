@@ -10,14 +10,15 @@ import { DeleteButton } from "./delete-button";
 import { revokeInvite } from "@/lib/actions/admin";
 import { inviteState } from "@/lib/invite";
 import { InviteForm, ResetForm } from "./forms";
+import { PageTitle, SettingRow } from "@/components/ui";
 
 export const metadata = { title: "Admin · Forever Gold" };
 
 export default function AdminPage() {
   return (
-    <main className="mx-auto max-w-6xl px-4 py-8">
+    <main className="mx-auto max-w-[1360px] px-4 pb-16 sm:px-8">
       <Header active="admin" />
-      <Suspense fallback={<p className="mt-8 text-muted">Loading…</p>}>
+      <Suspense fallback={<div className="pt-7" aria-busy="true"><div className="skeleton h-8 w-40" /><div className="skeleton mt-6 h-96" /></div>}>
         <Admin />
       </Suspense>
     </main>
@@ -55,94 +56,122 @@ async function Admin() {
       uploads: { orderBy: { at: "desc" }, take: 1, select: { at: true } },
     },
   });
+  const open = invites.filter((i) => inviteState(i) === "open").length;
   return (
-    <div className="mt-6 space-y-10">
-      <section>
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted">Guild accounts</h2>
-        <ul className="divide-y divide-line rounded border border-line">
-          {users.map((u) => (
-            <li key={u.id} className="flex flex-wrap items-center justify-between gap-3 p-3">
-              <div>
-                <span className="font-medium">{u.displayName}</span>{" "}
-                <span className="text-sm text-muted">
-                  {u.username} · {u.role === "ADMIN" ? "admin" : "member"} · last sign-in {day(u.lastLoginAt)} · last TSM upload{" "}
-                  {day(u.uploads[0]?.at)}
-                </span>
-              </div>
-              {u.id === me.id ? (
-                <span className="text-xs text-muted">you</span>
-              ) : (
-                <div className="flex flex-wrap items-center gap-3">
-                  <ResetForm id={u.id} />
-                  <DeleteButton id={u.id} name={u.displayName} />
-                </div>
-              )}
-            </li>
-          ))}
-        </ul>
-      </section>
-      <section>
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted">Blizzard auction data</h2>
-        <div className="mb-3 max-w-prose space-y-1 text-sm text-muted">
-          {!blizzardConfigured() ? (
-            <p className="text-warn">BNET_CLIENT_ID and BNET_CLIENT_SECRET are not set on this deployment.</p>
-          ) : house ? (
-            <p>
-              Collecting from <span className="text-text">{house.houseName}</span> (house {house.houseId}, ruleset {house.rulesetId}), item auction
-              prices read {house.buyoutPerUnit ? "per unit" : "per stack"}.{" "}
-              {lastDepth
-                ? `Latest listing: ${day(lastDepth.lastModified)}, ${lastDepth.itemCount.toLocaleString("en-US")} items from ${lastDepth.auctionCount.toLocaleString("en-US")} auctions.`
-                : "No listing stored yet: the next hourly collection fetches one."}
-            </p>
-          ) : (
-            <p>The key is set. Find our auction house once; after that the hourly collection stores how many are listed at each price.</p>
-          )}
-        </div>
-        {blizzardConfigured() ? <BlizzardDiscovery /> : null}
-      </section>
-      <section>
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted">Invite a guildie</h2>
-        <InviteForm />
-        <p className="mt-3 max-w-prose text-sm text-muted">
-          Send the link in a private message. Whoever opens it first picks a username and password; then the link is spent.
-          There is no other way to sign up. Deleting an account removes its ledger and uploads too.
-        </p>
-      </section>
-      {invites.length ? (
-        <section>
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted">Invites</h2>
-          <ul className="divide-y divide-line rounded border border-line text-sm">
-            {invites.map((i) => {
-              const st = inviteState(i);
-              return (
-                <li key={i.id} className="flex flex-wrap items-center justify-between gap-3 p-3">
-                  <span>
-                    <span className="font-medium">{i.note || "Invite"}</span>{" "}
-                    <span className="text-muted">
-                      {i.role === "ADMIN" ? "admin · " : ""}made {day(i.createdAt)} ·{" "}
-                      {st === "used"
-                        ? `used by ${i.usedBy?.displayName ?? "a deleted account"} ${day(i.usedAt)}`
-                        : st === "expired"
-                          ? `expired ${day(i.expiresAt)}`
-                          : `open until ${day(i.expiresAt)}`}
-                    </span>
-                  </span>
-                  {st === "open" ? (
-                    <form action={revokeInvite}>
-                      <input type="hidden" name="id" value={i.id} />
-                      <button type="submit" className="rounded border border-line px-2 py-1 text-xs text-muted hover:text-text">
-                        Cancel invite
-                      </button>
-                    </form>
-                  ) : (
-                    <span className={`text-xs ${st === "used" ? "text-good" : "text-muted"}`}>{st}</span>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        </section>
-      ) : null}
-    </div>
+    <>
+      <PageTitle title="Admin">
+        {users.length} {users.length === 1 ? "account" : "accounts"}, {open} open {open === 1 ? "invite" : "invites"}.{" "}
+        {house ? `Listings from ${house.houseName}.` : "No auction house chosen yet."}
+      </PageTitle>
+      <div className="border-t border-line">
+        <SettingRow title="Guild accounts" note="Deleting an account removes its ledger and uploads.">
+          <div className="card overflow-x-auto">
+            <table className="data">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Role</th>
+                  <th>Last sign-in</th>
+                  <th>Last upload</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {users.map((u) => (
+                  <tr key={u.id}>
+                    <td>
+                      <span className="font-medium">{u.displayName}</span>
+                      {u.username !== u.displayName.toLowerCase() ? <span className="text-muted"> {u.username}</span> : null}
+                    </td>
+                    <td className="text-muted">{u.role === "ADMIN" ? "Admin" : "Member"}</td>
+                    <td className="num text-muted">{day(u.lastLoginAt)}</td>
+                    <td className="num text-muted">{day(u.uploads[0]?.at)}</td>
+                    <td className="r">
+                      {u.id === me.id ? (
+                        <span className="text-xs text-muted">you</span>
+                      ) : (
+                        <div className="flex flex-wrap items-center justify-end gap-2">
+                          <ResetForm id={u.id} />
+                          <DeleteButton id={u.id} name={u.displayName} />
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </SettingRow>
+
+        <SettingRow title="Invites" note="One-time links, good for 7 days. The only way to sign up.">
+          <div className="card p-4">
+            <InviteForm />
+          </div>
+          {invites.length ? (
+            <div className="card mt-4 overflow-x-auto">
+              <table className="data">
+                <thead>
+                  <tr>
+                    <th>For</th>
+                    <th>Made</th>
+                    <th>State</th>
+                    <th />
+                  </tr>
+                </thead>
+                <tbody>
+                  {invites.map((i) => {
+                    const st = inviteState(i);
+                    return (
+                      <tr key={i.id}>
+                        <td>
+                          <span className="font-medium">{i.note || "Invite"}</span>
+                          {i.role === "ADMIN" ? <span className="text-muted"> admin</span> : null}
+                        </td>
+                        <td className="num text-muted">{day(i.createdAt)}</td>
+                        <td className="text-muted">
+                          {st === "used" ? (
+                            <>Used by <span className="text-text">{i.usedBy?.displayName ?? "a deleted account"}</span></>
+                          ) : st === "expired" ? (
+                            "Expired"
+                          ) : (
+                            <>Open until <span className="num">{day(i.expiresAt)}</span></>
+                          )}
+                        </td>
+                        <td className="r">
+                          {st === "open" ? (
+                            <form action={revokeInvite}>
+                              <input type="hidden" name="id" value={i.id} />
+                              <button type="submit" className="btn btn-small">Cancel</button>
+                            </form>
+                          ) : null}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : null}
+        </SettingRow>
+
+        <SettingRow
+          title="Blizzard listings"
+          note={
+            !blizzardConfigured() ? (
+              <span className="text-warn">BNET_CLIENT_ID and BNET_CLIENT_SECRET are not set on this deployment.</span>
+            ) : house ? (
+              <>
+                House {house.houseId}, ruleset {house.rulesetId}, buyouts {house.buyoutPerUnit ? "per unit" : "per stack"}.{" "}
+                {lastDepth ? `Latest ${day(lastDepth.lastModified)}: ${lastDepth.itemCount.toLocaleString("en-US")} items, ${lastDepth.auctionCount.toLocaleString("en-US")} auctions.` : "No listing stored yet."}
+              </>
+            ) : (
+              "Find the auction house once; hourly collection follows."
+            )
+          }
+        >
+          {blizzardConfigured() ? <div className="card p-4"><BlizzardDiscovery /></div> : <p className="text-muted">Set the two variables on Vercel, then redeploy.</p>}
+        </SettingRow>
+      </div>
+    </>
   );
 }

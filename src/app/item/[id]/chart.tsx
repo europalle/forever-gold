@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { formatCopper } from "@/lib/money";
+import { Money } from "@/components/ui";
 
 type Point = { t: number; minBuyout: number | null; marketValue: number | null };
 
@@ -48,7 +49,7 @@ export function PriceChart({ points }: { points: Point[] }) {
   const h = hover !== null ? points[hover] : null;
 
   return (
-    <figure className="rounded border border-line bg-panel p-3">
+    <figure>
       <figcaption className="mb-2 flex flex-wrap gap-4 text-xs text-muted">
         {SERIES.map((s) => (
           <span key={s.key} className="flex items-center gap-1.5">
@@ -108,7 +109,7 @@ export function PriceChart({ points }: { points: Point[] }) {
         </svg>
         {h ? (
           <div
-            className="pointer-events-none absolute top-1 rounded border border-line bg-bg px-2 py-1 text-xs shadow"
+            className="pointer-events-none absolute top-1 rounded-md border border-line bg-raised px-2.5 py-1.5 text-xs shadow-[0_12px_28px_rgba(0,0,0,.35)]"
             style={{ left: `${(x(h.t) / W) * 100}%`, transform: x(h.t) > W / 2 ? "translateX(calc(-100% - 8px))" : "translateX(8px)" }}
           >
             <div className="text-muted">{fmtTime(h.t)} UTC</div>
@@ -116,7 +117,7 @@ export function PriceChart({ points }: { points: Point[] }) {
               <div key={s.key} className="flex items-center gap-2">
                 <span className="inline-block h-0.5 w-3 rounded" style={{ background: s.color }} />
                 <span className="text-muted">{s.label}</span>
-                <span className="num ml-auto text-text">{formatCopper(h[s.key])}</span>
+                <span className="num ml-auto text-text"><Money c={h[s.key]} /></span>
               </div>
             ))}
           </div>
@@ -136,8 +137,8 @@ export function PriceChart({ points }: { points: Point[] }) {
             {[...points].reverse().map((p) => (
               <tr key={p.t} className="border-t border-line">
                 <td className="py-1">{fmtTime(p.t)}</td>
-                <td className="num py-1 text-right text-text">{formatCopper(p.minBuyout)}</td>
-                <td className="num py-1 text-right text-text">{formatCopper(p.marketValue)}</td>
+                <td className="num py-1 text-right text-text"><Money c={p.minBuyout} /></td>
+                <td className="num py-1 text-right text-text"><Money c={p.marketValue} /></td>
               </tr>
             ))}
           </tbody>

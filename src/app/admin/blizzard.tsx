@@ -35,7 +35,7 @@ export function BlizzardDiscovery() {
 
   return (
     <div className="space-y-3 text-sm">
-      <button type="button" disabled={busy} onClick={() => post({})} className="rounded bg-gold px-3 py-2 font-medium text-bg disabled:opacity-60">
+      <button type="button" disabled={busy} onClick={() => post({})} className="btn btn-primary">
         {busy ? "Comparing auction houses… (up to a minute)" : "Find my auction house"}
       </button>
       {r?.error ? <p className="text-bad">{r.error}</p> : null}
@@ -48,7 +48,7 @@ export function BlizzardDiscovery() {
         </p>
       ) : null}
       {r?.candidates?.length ? (
-        <ul className="divide-y divide-line rounded border border-line">
+        <ul className="card rows">
           {r.candidates.map((c) => (
             <li key={c.houseId} className="flex flex-wrap items-center justify-between gap-3 px-3 py-2">
               <span>
@@ -63,7 +63,7 @@ export function BlizzardDiscovery() {
                   type="button"
                   disabled={busy}
                   onClick={() => post({ action: "choose", rulesetId: r.ruleset!.id, houseId: c.houseId, houseName: c.name, buyoutPerUnit: r.buyout?.perUnit ?? false })}
-                  className="rounded border border-line px-2 py-1 text-xs text-muted hover:text-text"
+                  className="btn btn-small"
                 >
                   Use this one
                 </button>

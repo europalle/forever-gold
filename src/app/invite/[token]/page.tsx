@@ -9,7 +9,7 @@ export const metadata = { title: "Join · Forever Gold", robots: { index: false,
 export default function InvitePage({ params }: { params: Promise<{ token: string }> }) {
   return (
     <main className="mx-auto flex min-h-screen max-w-sm flex-col justify-center px-4">
-      <h1 className="text-2xl font-semibold text-gold">Forever Gold</h1>
+      <h1 className="text-2xl font-bold">Forever Gold</h1>
       <Suspense fallback={<p className="mt-2 text-sm text-muted">Checking your invite…</p>}>
         <Invite params={params} />
       </Suspense>
@@ -32,7 +32,7 @@ async function Invite({ params }: { params: Promise<{ token: string }> }) {
           : state === "expired"
             ? "This invite has expired."
             : "This invite link is not valid."}{" "}
-        Ask for a new one. Already have an account? <a href="/login" className="text-gold hover:underline">Sign in</a>.
+        Ask for a new one. Already have an account? <a href="/login" className="text-text underline">Sign in</a>.
       </p>
     );
   }
