@@ -28,7 +28,7 @@ export function Header({ active }: { active: Active }) {
           <Mark />
           <span className="text-lg font-semibold">Forever Gold</span>
         </Link>
-        <nav className="order-last -mb-px flex w-full gap-x-6 overflow-x-auto md:order-none md:w-auto md:flex-1" aria-label="Sections">
+        <nav className="nav-scroll order-last -mb-px flex w-full gap-x-6 overflow-x-auto pb-px md:order-none md:w-auto md:flex-1 md:overflow-visible" aria-label="Sections">
           {NAV.map(([key, href, label]) => (
             <Link key={key} href={href} className="tab h-10 md:h-12" aria-current={active === key || (key === "market" && active === "item") ? "page" : undefined}>
               {label}

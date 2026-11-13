@@ -143,6 +143,9 @@ table.data tr.group:hover td { background: transparent; }
   height: 1px;
   background: var(--gold);
 }
+/* The sections row scrolls sideways on a phone, without a scrollbar. */
+.nav-scroll { scrollbar-width: none; }
+.nav-scroll::-webkit-scrollbar { display: none; }
 .tabs { display: flex; flex-wrap: wrap; gap: 0 24px; border-bottom: 1px solid var(--line); }
 
 /* Status tags: pale fill, ink of the same hue. */
