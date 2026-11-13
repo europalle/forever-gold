@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { decideBuyoutPerUnit, depthFrom, matchScore, unitPrice } from "../src/lib/blizzard-depth";
+import { soldBetween } from "../src/lib/blizzard-depth";
 
 describe("blizzard depth", () => {
   it("reads unit prices for commodities and item auctions", () => {
@@ -36,5 +37,20 @@ describe("blizzard depth", () => {
     const tsm = new Map([[7, 50]]);
     expect(decideBuyoutPerUnit([{ item: { id: 7 }, quantity: 10, buyout: 500 }], tsm).perUnit).toBe(false);
     expect(decideBuyoutPerUnit([{ item: { id: 7 }, quantity: 10, buyout: 50 }], tsm).perUnit).toBe(true);
+  });
+});
+
+describe("soldBetween", () => {
+  it("counts what left the cheap end", () => {
+    // 10 at 50c and 5 at 52c bought out, 3 of the 20 at 55c bought.
+    expect(soldBetween([[50, 10], [52, 5], [55, 20], [60, 100]], [[55, 17], [60, 100]])).toBe(18);
+  });
+  it("counts nothing when someone undercuts or lists more", () => {
+    expect(soldBetween([[50, 10], [55, 20]], [[48, 30], [50, 10], [55, 20]])).toBe(0);
+    expect(soldBetween([[50, 10]], [[50, 25]])).toBe(0);
+  });
+  it("counts only the cheapest level when the item is gone", () => {
+    expect(soldBetween([[50, 10], [55, 20]], null)).toBe(10);
+    expect(soldBetween([], [[50, 1]])).toBe(0);
   });
 });

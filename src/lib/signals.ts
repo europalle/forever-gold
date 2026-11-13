@@ -29,6 +29,7 @@ export type SignalInput = {
   supply: Point[]; // units listed
   soldPerDay: number | null; // EU-wide, all rulesets: a liquidity gauge only
   saleRate: number | null;
+  measuredHere?: boolean; // soldPerDay was measured on this auction house
 };
 
 export type Condition = "CRASH" | "FLOOD" | "SQUEEZE" | "SPIKE" | "SLIDE" | "DIP" | "RICH" | "UPTREND" | "CALM";
@@ -139,7 +140,8 @@ export function computeSignal(input: SignalInput): Signal | null {
     if (q24 && q24.v > 0) supplyChange = q.v / q24.v - 1;
   }
 
-  const liquid = (input.soldPerDay ?? 0) >= R.liquidSoldPerDay && (input.saleRate ?? 0) >= R.liquidSaleRate;
+  // The sale rate is EU-wide; with sales measured on this auction house it is not needed.
+  const liquid = (input.soldPerDay ?? 0) >= R.liquidSoldPerDay && (input.measuredHere || (input.saleRate ?? 0) >= R.liquidSaleRate);
   const prev = price.length >= 2 ? price[price.length - 2].v : p;
   const holding = p >= prev * 0.98; // the newest price did not fall again
 

@@ -387,6 +387,8 @@ model ItemSignal {
   supplyChange Float?
   liquid       Boolean
   soldPerDay   Float?
+  soldHere     Float? // units a day on this auction house, from ItemFlow
+  daysCover    Float? // units listed divided by soldHere
 
   @@index([action, strength])
 }
@@ -404,4 +406,21 @@ model SignalEvent {
 
   @@index([itemId, at])
   @@index([at])
+}
+
+// Units bought per item per UTC day on our auction house, estimated from what
+// left the cheap end between Blizzard listings (soldBetween). FlowDay holds how
+// many hours of each day were observed, so a rate can be worked out.
+model ItemFlow {
+  itemId Int
+  day    DateTime @db.Date
+  sold   Int
+
+  @@id([itemId, day])
+  @@index([day])
+}
+
+model FlowDay {
+  day   DateTime @id @db.Date
+  hours Float
 }

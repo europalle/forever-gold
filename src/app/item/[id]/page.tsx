@@ -56,8 +56,17 @@ async function Item({ params }: { params: Promise<{ id: string }> }) {
         <Stat label="Supply against usual" note={s?.supplyChange != null ? <>24h <Pct v={s.supplyChange} color={false} /></> : d.depth ? undefined : "needs Blizzard listings"}>
           <span className="num">{s?.supplyRatio != null ? `${s.supplyRatio.toFixed(1)}x` : "-"}</span>
         </Stat>
-        <Stat label="Sells, EU" note="share of listings"><span className="num">{formatPercent(d.region?.saleRate)}</span></Stat>
-        <Stat label="Sold a day, EU" note="per auction house"><span className="num">{d.region?.soldPerDay != null ? Math.round(d.region.soldPerDay).toLocaleString("en-US") : "-"}</span></Stat>
+        {s?.soldHere != null ? (
+          <>
+            <Stat label="Sold a day, here" note="from the listings"><span className="num">{s.soldHere < 10 ? s.soldHere.toFixed(1) : Math.round(s.soldHere).toLocaleString("en-US")}</span></Stat>
+            <Stat label="Days of supply" note="listed / sold a day"><span className={`num ${s.daysCover != null && s.daysCover > 14 ? "text-warn" : ""}`}>{s.daysCover != null ? (s.daysCover < 10 ? s.daysCover.toFixed(1) : Math.round(s.daysCover).toLocaleString("en-US")) : "-"}</span></Stat>
+          </>
+        ) : (
+          <>
+            <Stat label="Sells, EU" note="share of listings"><span className="num">{formatPercent(d.region?.saleRate)}</span></Stat>
+            <Stat label="Sold a day, EU" note="per auction house"><span className="num">{d.region?.soldPerDay != null ? Math.round(d.region.soldPerDay).toLocaleString("en-US") : "-"}</span></Stat>
+          </>
+        )}
       </dl>
 
       <div className="rise rise-3 mt-6 grid gap-6 lg:grid-cols-12">

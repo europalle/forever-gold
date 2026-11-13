@@ -81,3 +81,21 @@ export function decideBuyoutPerUnit(itemAuctions: RawAuction[], tsmMin: Map<numb
   const b = matchScore(depthFrom(stacked, false), tsmMin);
   return { perUnit: a.score > b.score, stacked: stacked.length, perUnitScore: a.score, perStackScore: b.score };
 }
+
+// Units bought between two listings of one item: what vanished from the cheap
+// end. Every level under the new cheapest price is gone, and the level at the
+// new cheapest price may have shrunk. Listings that are cancelled or expire sit
+// higher up as a rule, so they are not counted; an item that disappeared
+// entirely counts only its cheapest level. A lower bound, good enough to rank by.
+export function soldBetween(prev: [number, number][], next: [number, number][] | null): number {
+  if (!prev.length) return 0;
+  if (!next || !next.length) return prev[0][1];
+  const nextMin = next[0][0];
+  let sold = 0;
+  for (const [price, qty] of prev) {
+    if (price < nextMin) sold += qty;
+    else if (price === nextMin) sold += Math.max(0, qty - next[0][1]);
+    else break;
+  }
+  return sold;
+}

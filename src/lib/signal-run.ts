@@ -5,6 +5,7 @@
 import type { PrismaClient } from "@/generated/prisma/client";
 import { MARKET } from "@/config/player";
 import { TRACKED } from "@/config/items";
+import { realmSales } from "./blizzard-collect";
 import { at, backtest, computeSignal, judge, type Backtest, type Point, type Signal, type SignalInput } from "./signals";
 import { marketScope } from "./tsm";
 
@@ -67,7 +68,9 @@ export async function runSignals(db: PrismaClient, now = new Date()) {
     ? await db.regionStat.findMany({ where: { snapshotId: region.id }, select: { itemId: true, soldPerDay: true, saleRate: true } })
     : [];
   const statOf = new Map(stats.map((s) => [s.itemId, s]));
-  const ids = [...new Set([...stats.filter((s) => (s.soldPerDay ?? 0) >= MIN_SOLD_PER_DAY).map((s) => s.itemId), ...TRACKED.map((t) => t.id)])];
+  // Sales measured on this auction house replace the EU-wide figure once there are enough hours of them.
+  const here = await realmSales(db, 3, now);
+  const ids = [...new Set([...here.perDay.keys(), ...stats.filter((s) => (s.soldPerDay ?? 0) >= MIN_SOLD_PER_DAY).map((s) => s.itemId), ...TRACKED.map((t) => t.id)])];
   const since = new Date(now.getTime() - HISTORY_DAYS * 86_400_000);
   const history = await loadHistory(db, ids, since);
 
@@ -77,7 +80,15 @@ export async function runSignals(db: PrismaClient, now = new Date()) {
     const h = history.get(id);
     if (!h) continue;
     const st = statOf.get(id);
-    const input: SignalInput = { now: now.getTime(), price: h.price, supply: h.supply, soldPerDay: st?.soldPerDay ?? null, saleRate: st?.saleRate ?? null };
+    const measured = here.hours > 0 && here.perDay.size > 0;
+    const input: SignalInput = {
+      now: now.getTime(),
+      price: h.price,
+      supply: h.supply,
+      soldPerDay: measured ? (here.perDay.get(id) ?? 0) : (st?.soldPerDay ?? null),
+      saleRate: st?.saleRate ?? null,
+      measuredHere: measured,
+    };
     inputs.set(id, input);
     const s = computeSignal(input);
     if (s) signals.push({ itemId: id, s });
@@ -111,6 +122,8 @@ export async function runSignals(db: PrismaClient, now = new Date()) {
           supplyChange: finite(s.supplyChange),
           liquid: s.liquid,
           soldPerDay: statOf.get(itemId)?.soldPerDay ?? null,
+          soldHere: here.perDay.get(itemId) ?? (here.perDay.size ? 0 : null),
+          daysCover: cover(history.get(itemId)?.supply, here.perDay.get(itemId)),
         })),
       });
       if (events.length) {
@@ -131,7 +144,7 @@ export async function runSignals(db: PrismaClient, now = new Date()) {
     const top = [...inputs.entries()]
       .sort((a, b) => (b[1].soldPerDay ?? 0) - (a[1].soldPerDay ?? 0))
       .slice(0, BACKTEST_ITEMS)
-      .map(([, i]) => ({ price: i.price, supply: i.supply, soldPerDay: i.soldPerDay, saleRate: i.saleRate }));
+      .map(([, i]) => ({ price: i.price, supply: i.supply, soldPerDay: i.soldPerDay, saleRate: i.saleRate, measuredHere: i.measuredHere }));
     const live = await liveRecord(db, history, now);
     const value: Scoreboard = { at: now.toISOString(), backtest: backtest(top), live };
     await db.setting.upsert({
@@ -170,3 +183,10 @@ async function liveRecord(db: PrismaClient, history: Map<number, Series>, now: D
 }
 
 const finite = (x: number | null) => (x != null && Number.isFinite(x) ? x : null);
+
+// Days the listed stock would last at the measured sales rate.
+function cover(supply: Point[] | undefined, perDay: number | undefined): number | null {
+  const q = supply?.[supply.length - 1]?.v;
+  if (!q || !perDay) return null;
+  return Math.min(9999, q / perDay);
+}

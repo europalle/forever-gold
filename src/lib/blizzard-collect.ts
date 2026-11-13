@@ -1,6 +1,7 @@
 import type { PrismaClient } from "@/generated/prisma/client";
 import { MARKET } from "@/config/player";
-import { decideBuyoutPerUnit, depthFrom, matchScore } from "./blizzard-depth";
+import { decideBuyoutPerUnit, depthFrom, matchScore, soldBetween } from "./blizzard-depth";
+import { Prisma } from "@/generated/prisma/client";
 import { blizzardConfigured, commodities, houses, itemAuctions, rulesets } from "./blizzard";
 import { marketScope, marketUrl, parseMarketCsv } from "./tsm";
 
@@ -120,6 +121,7 @@ export async function collectBlizzard(db: PrismaClient) {
   const lastModified = c.lastModified ?? new Date();
   if (last && last.lastModified.getTime() === lastModified.getTime()) return { kind: "BLIZZARD" as const, scope, status: "unchanged" as const, detail: "same listing" };
   const depth = depthFrom([...c.auctions, ...items.auctions], choice.buyoutPerUnit);
+  if (last) await storeFlow(db, last, lastModified, depth);
   await db.$transaction(
     async (tx) => {
       const snap = await tx.depthSnapshot.create({
@@ -147,4 +149,50 @@ async function storeSupply(db: PrismaClient, at: Date, items: { itemId: number; 
     skipDuplicates: true,
   });
   await db.supplyPoint.deleteMany({ where: { at: { lt: new Date(at.getTime() - SUPPLY_KEEP_DAYS * 86_400_000) } } });
+}
+
+// Sales since the previous listing, added to the day's totals. Gaps over six
+// hours are skipped: too much happens unseen to call the difference sales.
+const FLOW_MAX_GAP_H = 6;
+const FLOW_KEEP_DAYS = 30;
+
+export async function storeFlow(db: PrismaClient, prev: { id: number; lastModified: Date }, at: Date, depth: Map<number, { ladder: [number, number][] }>) {
+  const hours = (at.getTime() - prev.lastModified.getTime()) / 3_600_000;
+  if (hours <= 0 || hours > FLOW_MAX_GAP_H) return;
+  const before = await db.depthItem.findMany({ where: { snapshotId: prev.id }, select: { itemId: true, ladder: true } });
+  const ids: number[] = [];
+  const sold: number[] = [];
+  for (const b of before) {
+    const n = soldBetween(b.ladder as [number, number][], depth.get(b.itemId)?.ladder ?? null);
+    if (n > 0) {
+      ids.push(b.itemId);
+      sold.push(Math.min(n, 2_000_000_000));
+    }
+  }
+  const day = new Date(Date.UTC(at.getUTCFullYear(), at.getUTCMonth(), at.getUTCDate()));
+  await db.$transaction([
+    db.$executeRaw`
+      INSERT INTO "ItemFlow" ("itemId", day, sold)
+      SELECT * FROM unnest(${ids}::int[], ${ids.map(() => day)}::date[], ${sold}::int[])
+      ON CONFLICT ("itemId", day) DO UPDATE SET sold = "ItemFlow".sold + EXCLUDED.sold`,
+    db.$executeRaw`
+      INSERT INTO "FlowDay" (day, hours) VALUES (${day}::date, ${hours})
+      ON CONFLICT (day) DO UPDATE SET hours = "FlowDay".hours + EXCLUDED.hours`,
+    db.$executeRaw(Prisma.sql`DELETE FROM "ItemFlow" WHERE day < ${new Date(at.getTime() - FLOW_KEEP_DAYS * 86_400_000)}::date`),
+  ]);
+}
+
+// Units sold a day per item on our auction house over the last days, or an
+// empty map until enough hours have been observed to mean something.
+export const FLOW_MIN_HOURS = 12;
+export async function realmSales(db: PrismaClient, days = 3, now = new Date()): Promise<{ perDay: Map<number, number>; hours: number }> {
+  const since = new Date(now.getTime() - days * 86_400_000);
+  const [h] = await db.$queryRaw<{ hours: number | null }[]>`SELECT SUM(hours)::float8 AS hours FROM "FlowDay" WHERE day >= ${since}::date`;
+  const hours = h?.hours ?? 0;
+  const perDay = new Map<number, number>();
+  if (hours < FLOW_MIN_HOURS) return { perDay, hours };
+  const rows = await db.$queryRaw<{ itemId: number; sold: number }[]>`
+    SELECT "itemId", SUM(sold)::float8 AS sold FROM "ItemFlow" WHERE day >= ${since}::date GROUP BY "itemId"`;
+  for (const r of rows) perDay.set(r.itemId, (r.sold / hours) * 24);
+  return { perDay, hours };
 }
