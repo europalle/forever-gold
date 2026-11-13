@@ -46,9 +46,9 @@ export function InviteForm() {
 export function ResetForm({ id }: { id: string }) {
   const [state, action, pending] = useActionState<FormState, FormData>(resetPassword, {});
   return (
-    <form action={action} className="flex flex-wrap items-center gap-2">
+    <form action={action} className="flex items-center gap-2">
       <input type="hidden" name="id" value={id} />
-      <input name="password" required minLength={10} placeholder="New password" aria-label="New password" className={`${input} max-w-48 py-1 text-sm`} />
+      <input name="password" required minLength={10} placeholder="New password" aria-label="New password" className={`${input} !h-7 !w-40`} />
       <button type="submit" disabled={pending} className="btn btn-small">
         Reset
       </button>

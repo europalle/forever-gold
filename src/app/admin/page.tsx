@@ -92,7 +92,7 @@ async function Admin() {
                       {u.id === me.id ? (
                         <span className="text-xs text-muted">you</span>
                       ) : (
-                        <div className="flex flex-wrap items-center justify-end gap-2">
+                        <div className="flex items-center justify-end gap-2">
                           <ResetForm id={u.id} />
                           <DeleteButton id={u.id} name={u.displayName} />
                         </div>
