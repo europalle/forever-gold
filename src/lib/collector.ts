@@ -184,5 +184,16 @@ export async function collectAll(db: PrismaClient, fetcher: Fetcher = fetch): Pr
   } catch (e) {
     out.push({ kind: "SIGNALS", scope: "eu", status: "error", detail: e instanceof Error ? e.message : String(e) });
   }
+  // Keep the last run, so the site can show that collection is alive and what failed.
+  try {
+    const value = { at: new Date().toISOString(), results: out };
+    await db.setting.upsert({ where: { key: LAST_COLLECT_KEY }, create: { key: LAST_COLLECT_KEY, value: value as never }, update: { value: value as never } });
+  } catch {
+    // Reporting must never fail a collection.
+  }
   return out;
 }
+
+export const LAST_COLLECT_KEY = "lastCollect";
+export type LastCollect = { at: string; results: CollectResult[] };
+

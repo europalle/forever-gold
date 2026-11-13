@@ -11,6 +11,7 @@ import { revokeInvite } from "@/lib/actions/admin";
 import { inviteState } from "@/lib/invite";
 import { InviteForm, ResetForm } from "./forms";
 import { PageTitle, SettingRow } from "@/components/ui";
+import { LAST_COLLECT_KEY, type LastCollect } from "@/lib/collector";
 
 export const metadata = { title: "Admin · Forever Gold" };
 
@@ -41,6 +42,7 @@ async function Admin() {
   await connection();
   const me = await requireAdmin();
   const invites = await recentInvites();
+  const lastRun = ((await db.setting.findUnique({ where: { key: LAST_COLLECT_KEY } }))?.value ?? null) as LastCollect | null;
   const [house, lastDepth] = await Promise.all([
     getHouseChoice(db),
     db.depthSnapshot.findFirst({ orderBy: { lastModified: "desc" }, select: { lastModified: true, itemCount: true, auctionCount: true, fetchedAt: true } }),
@@ -152,6 +154,33 @@ async function Admin() {
               </table>
             </div>
           ) : null}
+        </SettingRow>
+
+        <SettingRow title="Collection" note={lastRun ? <>Last run <span className="num">{day(new Date(lastRun.at))}</span>.</> : "No run recorded yet."}>
+          {lastRun ? (
+            <div className="card overflow-x-auto">
+              <table className="data">
+                <thead>
+                  <tr>
+                    <th>Feed</th>
+                    <th>Result</th>
+                    <th>Detail</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {lastRun.results.map((r) => (
+                    <tr key={r.kind}>
+                      <td className="font-medium">{r.kind[0] + r.kind.slice(1).toLowerCase()}</td>
+                      <td className={r.status === "error" ? "text-bad" : r.status === "stored" ? "text-good" : "text-muted"}>{r.status === "stored" ? "New data" : r.status === "unchanged" ? "Nothing new" : "Failed"}</td>
+                      <td className="text-muted">{[r.items ? `${r.items.toLocaleString("en-US")} items` : null, r.detail].filter(Boolean).join(", ") || "-"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="text-muted">Fills in after the next hourly run.</p>
+          )}
         </SettingRow>
 
         <SettingRow
