@@ -102,12 +102,22 @@ export function How({ label = "How this works", children }: { label?: string; ch
   );
 }
 
-// Item quality as the game colours it: a 2px bar before the name.
-const QUALITY = ["#8f9198", "#e8e8ea", "#1eff00", "#3a8dff", "#b048f8", "#ff8000"];
-export function ItemName({ id, name, quality, className = "" }: { id: number; name: string; quality?: number | null; className?: string }) {
+// An item as the game shows it: its icon in a 1px border of its quality colour.
+// Without an icon yet, a bar in that colour stands in.
+export const QUALITY_COLOR = ["#8f9198", "#e8e8ea", "#1eff00", "#3a8dff", "#b048f8", "#ff8000"];
+export function ItemIcon({ icon, quality, size = 22 }: { icon?: string | null; quality?: number | null; size?: number }) {
+  const color = quality != null ? (QUALITY_COLOR[quality] ?? QUALITY_COLOR[1]) : "#3a3a3e";
+  if (!icon) return <span aria-hidden="true" className="shrink-0 rounded-sm" style={{ background: color, width: 2, height: Math.round(size * 0.75) }} />;
+  return (
+    // eslint-disable-next-line @next/next/no-img-element -- a 56px icon from Blizzard's CDN; nothing to optimise
+    <img src={icon} alt="" width={size} height={size} loading="lazy" decoding="async" className="shrink-0 rounded-[3px]" style={{ border: `1px solid ${color}` }} />
+  );
+}
+
+export function ItemName({ id, name, quality, icon, className = "" }: { id: number; name: string; quality?: number | null; icon?: string | null; className?: string }) {
   return (
     <Link href={`/item/${id}`} className={`item-name inline-flex items-center gap-2 font-medium hover:underline ${className}`}>
-      <span aria-hidden="true" className="h-4 w-0.5 shrink-0 rounded-sm" style={{ background: quality != null ? (QUALITY[quality] ?? QUALITY[1]) : "#3a3a3e" }} />
+      <ItemIcon icon={icon} quality={quality} />
       <span className="truncate">{name}</span>
     </Link>
   );

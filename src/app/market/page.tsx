@@ -4,7 +4,7 @@ import { Header } from "@/components/header";
 import { SETTINGS } from "@/config/settings";
 import { requireUser } from "@/lib/auth";
 import { formatPercent } from "@/lib/money";
-import { capForUser, deals, levelWindowFor, movers, qualities, search, sparks, type LevelWindow, type MarketItem } from "@/lib/queries/market";
+import { capForUser, deals, levelWindowFor, movers, itemMeta, search, sparks, type LevelWindow, type MarketItem } from "@/lib/queries/market";
 import { Card, How, ItemName, Meter, Money, PageTitle, Sparkline, Tabs } from "@/components/ui";
 
 export const metadata = { title: "Market · Forever Gold" };
@@ -156,7 +156,7 @@ async function ItemTable({
   extraHead?: string[];
 }) {
   const ids = items.map((i) => i.id);
-  const [week, quality] = await Promise.all([sparks(ids), qualities(ids)]);
+  const [week, meta] = await Promise.all([sparks(ids), itemMeta(ids)]);
   return (
     <Card title={title} note={note} action={how ? <How label="How this is worked out">{how}</How> : undefined}>
       {items.length === 0 ? (
@@ -180,7 +180,7 @@ async function ItemTable({
             <tbody>
               {items.map((i) => (
                 <tr key={i.id}>
-                  <td className="max-w-[320px]"><ItemName id={i.id} name={i.name} quality={quality.get(i.id)} className="max-w-full" /></td>
+                  <td className="max-w-[320px]"><ItemName id={i.id} name={i.name} quality={meta.get(i.id)?.quality} icon={meta.get(i.id)?.icon} className="max-w-full" /></td>
                   <td className="r"><Money c={i.minBuyout} /></td>
                   <td><Sparkline values={week.get(i.id) ?? []} /></td>
                   <td className="r"><Money c={i.marketValue} className="text-muted" /></td>

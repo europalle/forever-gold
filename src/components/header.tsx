@@ -8,11 +8,12 @@ import { freshness } from "@/lib/queries/status";
 
 const market = `${MARKET.region.toUpperCase()} · PvP · ${MARKET.faction[0].toUpperCase()}${MARKET.faction.slice(1)}`;
 
-type Active = "board" | "market" | "signals" | "research" | "ledger" | "account" | "admin" | "item";
+type Active = "board" | "crafting" | "market" | "signals" | "research" | "ledger" | "account" | "admin" | "item";
 const NAV: [Active, string, string][] = [
   ["board", "/", "Board"],
   ["signals", "/signals", "Signals"],
   ["market", "/market", "Market"],
+  ["crafting", "/crafting", "Crafting"],
   ["research", "/research", "Research"],
   ["ledger", "/ledger", "Ledger"],
   ["account", "/account", "Account"],

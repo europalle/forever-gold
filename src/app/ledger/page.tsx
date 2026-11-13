@@ -5,7 +5,7 @@ import { requireUser } from "@/lib/auth";
 import type { Totals } from "@/lib/ledger";
 import { formatCopper, formatPercent } from "@/lib/money";
 import { ledgerView } from "@/lib/queries/ledger";
-import { qualities } from "@/lib/queries/market";
+import { itemMeta } from "@/lib/queries/market";
 import { TsmUpload } from "./upload";
 import { Card, ItemName, Money, PageTitle, Pct, Stat } from "@/components/ui";
 
@@ -34,7 +34,7 @@ async function Ledger() {
       </PageTitle>
     );
   }
-  const quality = await qualities(v.items.map((i) => i.itemId).filter((x): x is number => x != null));
+  const meta = await itemMeta(v.items.map((i) => i.itemId).filter((x): x is number => x != null));
   const gold = v.characters.reduce((a, c) => a + (c.money ?? 0), 0);
 
   return (
@@ -74,7 +74,7 @@ async function Ledger() {
                   const vsNow = avg && i.cheapestNow ? i.cheapestNow / avg - 1 : null;
                   return (
                     <tr key={i.itemId ?? i.name}>
-                      <td>{i.itemId != null ? <ItemName id={i.itemId} name={i.name} quality={quality.get(i.itemId)} /> : i.name}</td>
+                      <td>{i.itemId != null ? <ItemName id={i.itemId} name={i.name} quality={meta.get(i.itemId)?.quality} icon={meta.get(i.itemId)?.icon} /> : i.name}</td>
                       <td className="r num">{i.soldQty || <span className="text-muted">-</span>}</td>
                       <td className="r"><Money c={i.soldQty ? i.soldGross : null} /></td>
                       <td className="r"><Money c={avg} className="text-muted" /></td>

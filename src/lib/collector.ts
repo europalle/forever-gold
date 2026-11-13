@@ -2,6 +2,7 @@ import { Prisma, type PrismaClient } from "@/generated/prisma/client";
 import { MARKET } from "@/config/player";
 import { collectBlizzard } from "./blizzard-collect";
 import { runSignals } from "./signal-run";
+import { importStatic, staticSummary } from "./static-import";
 import {
   marketScope,
   marketUrl,
@@ -14,7 +15,7 @@ import {
 } from "./tsm";
 
 export type CollectResult = {
-  kind: "MARKET" | "REGION" | "BLIZZARD" | "SIGNALS";
+  kind: "MARKET" | "REGION" | "BLIZZARD" | "SIGNALS" | "STATIC";
   scope: string;
   status: "stored" | "unchanged" | "error";
   scanTime?: string;
@@ -202,11 +203,18 @@ export async function collectAll(db: PrismaClient, fetcher: Fetcher = fetch): Pr
     await db.setting.upsert({ where: { key: SIGNALS_RAN_KEY }, create: { key: SIGNALS_RAN_KEY, value }, update: { value } });
     return { kind: "SIGNALS", scope: "eu", status: "stored", items: r.items, detail: `${r.calls} calls${r.backtest ? ", backtest refreshed" : ""}` };
   });
+  // Recipes and icons from Blizzard's static data, a timed slice per run.
+  await step("STATIC", "eu", async () => {
+    const r = await importStatic(db, STATIC_BUDGET_MS);
+    const worked = r.recipesListed + r.recipesFetched + r.iconsFetched > 0;
+    return { kind: "STATIC", scope: "eu", status: r.errors.length && !worked ? "error" : worked ? "stored" : "unchanged", detail: staticSummary(r) };
+  });
   await save(null);
   return out;
 }
 
 const SIGNALS_RAN_KEY = "signalsRan";
+const STATIC_BUDGET_MS = 45_000;
 export const LAST_COLLECT_KEY = "lastCollect";
 export type LastCollect = { at: string; results: CollectResult[]; running?: string | null };
 

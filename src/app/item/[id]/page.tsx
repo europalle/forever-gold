@@ -3,11 +3,11 @@ import { Suspense } from "react";
 import { Header } from "@/components/header";
 import { requireUser } from "@/lib/auth";
 import { formatPercent } from "@/lib/money";
-import { itemDetail, qualities } from "@/lib/queries/market";
+import { itemDetail, itemMeta } from "@/lib/queries/market";
 import { itemSignal } from "@/lib/queries/signals";
 import { CONDITION_LABEL } from "@/lib/signal-labels";
 import { PriceChart } from "./chart";
-import { ActionTag, Card, Empty, Money, Pct, Stat } from "@/components/ui";
+import { ActionTag, Card, Empty, ItemIcon, Money, Pct, Stat } from "@/components/ui";
 
 export const metadata = { title: "Item · Forever Gold" };
 
@@ -32,7 +32,7 @@ async function Item({ params }: { params: Promise<{ id: string }> }) {
   const [d, sig] = ok ? await Promise.all([itemDetail(id, me.id), itemSignal(id)]) : [null, null];
   if (!d) return <p className="mt-8 text-muted">No prices for that item on your market yet.</p>;
   const last = d.history[d.history.length - 1];
-  const [quality] = [(await qualities([id])).get(id)];
+  const meta = (await itemMeta([id])).get(id);
   const maxQty = d.depth ? Math.max(1, ...d.depth.ladder.map(([, q]) => q)) : 1;
   const s = sig?.signal ?? null;
 
@@ -41,7 +41,7 @@ async function Item({ params }: { params: Promise<{ id: string }> }) {
       <div className="rise flex flex-wrap items-end justify-between gap-x-8 gap-y-3 pb-5 pt-7">
         <div className="min-w-0">
           <h1 className="flex items-center gap-3 text-2xl font-bold">
-            <span aria-hidden="true" className="h-6 w-[3px] rounded-sm" style={{ background: QUALITY[quality ?? -1] ?? "#3a3a3e" }} />
+            <ItemIcon icon={meta?.icon} quality={meta?.quality} size={32} />
             {d.name}
           </h1>
           <p className="mt-1 max-w-[80ch] text-base text-muted">{s && s.action !== "none" ? s.reason : "No call."}</p>
@@ -150,5 +150,3 @@ async function Item({ params }: { params: Promise<{ id: string }> }) {
     </>
   );
 }
-
-const QUALITY: Record<number, string> = { 0: "#8f9198", 1: "#e8e8ea", 2: "#1eff00", 3: "#3a8dff", 4: "#b048f8", 5: "#ff8000" };

@@ -39,8 +39,8 @@ async function accessToken(): Promise<string> {
 
 export type ApiResult<T> = { status: number; data: T | null; lastModified: Date | null; bytes: number };
 
-async function get<T>(path: string, ifModifiedSince?: Date | null): Promise<ApiResult<T>> {
-  const url = `${API}${path}${path.includes("?") ? "&" : "?"}namespace=${NS}&locale=${LOCALE}`;
+async function get<T>(path: string, ifModifiedSince?: Date | null, ns: string = NS): Promise<ApiResult<T>> {
+  const url = `${API}${path}${path.includes("?") ? "&" : "?"}namespace=${ns}&locale=${LOCALE}`;
   const headers: Record<string, string> = { Authorization: `Bearer ${await accessToken()}`, "Accept-Encoding": "gzip" };
   if (ifModifiedSince) headers["If-Modified-Since"] = ifModifiedSince.toUTCString();
   for (let attempt = 0; ; attempt++) {
@@ -83,4 +83,76 @@ export async function commodities(rulesetId: number, houseId: number, ifModified
 export async function itemAuctions(rulesetId: number, houseId: number) {
   const r = await get<{ auctions?: RawAuction[] }>(`/data/wow/ruleset/${rulesetId}/auctions/${houseId}`);
   return { ...r, auctions: r.data?.auctions ?? [] };
+}
+
+// ---- Static game data: professions, recipes, item icons ----
+// Forever's static namespace is not documented. Try the likely names once and
+// keep the one that answers.
+const STATIC_NAMESPACES = ["static-forever-eu", "static-classic-eu", NS];
+let staticNs: string | null = null;
+
+export async function staticGet<T>(path: string): Promise<ApiResult<T>> {
+  if (staticNs) return get<T>(path, null, staticNs);
+  let last: ApiResult<T> | null = null;
+  for (const ns of STATIC_NAMESPACES) {
+    last = await get<T>(path, null, ns);
+    if (last.status === 200) {
+      staticNs = ns;
+      return last;
+    }
+  }
+  return last!;
+}
+export const staticNamespace = () => staticNs;
+
+type Ref = { id?: number; name?: string };
+
+export async function professionIndex(): Promise<{ status: number; professions: { id: number; name: string }[] }> {
+  const r = await staticGet<{ professions?: Ref[] }>("/data/wow/profession/index");
+  return { status: r.status, professions: (r.data?.professions ?? []).filter((p): p is { id: number; name: string } => typeof p.id === "number" && typeof p.name === "string") };
+}
+
+export async function professionTiers(id: number): Promise<{ id: number; name: string }[]> {
+  const r = await staticGet<{ skill_tiers?: Ref[] }>(`/data/wow/profession/${id}`);
+  return (r.data?.skill_tiers ?? []).filter((t): t is { id: number; name: string } => typeof t.id === "number").map((t) => ({ id: t.id, name: t.name ?? "" }));
+}
+
+export async function tierRecipes(professionId: number, tierId: number): Promise<{ id: number; name: string; category: string }[]> {
+  const r = await staticGet<{ categories?: { name?: string; recipes?: Ref[] }[] }>(`/data/wow/profession/${professionId}/skill-tier/${tierId}`);
+  const out: { id: number; name: string; category: string }[] = [];
+  for (const c of r.data?.categories ?? []) {
+    for (const x of c.recipes ?? []) if (typeof x.id === "number") out.push({ id: x.id, name: x.name ?? "", category: c.name ?? "" });
+  }
+  return out;
+}
+
+export type RecipeDetail = { status: number; name: string | null; outputId: number | null; outputQty: number; reagents: [number, number][] };
+
+// Parses a recipe answer, tolerant of the shapes Blizzard uses across game versions.
+export function parseRecipe(status: number, d: unknown): RecipeDetail {
+  const o = (d ?? {}) as {
+    name?: string;
+    crafted_item?: Ref;
+    alliance_crafted_item?: Ref;
+    crafted_quantity?: { value?: number; minimum?: number; maximum?: number };
+    reagents?: { reagent?: Ref; quantity?: number }[];
+  };
+  const q = o.crafted_quantity;
+  const qty = typeof q?.value === "number" ? q.value : typeof q?.minimum === "number" && typeof q?.maximum === "number" ? (q.minimum + q.maximum) / 2 : 1;
+  const reagents: [number, number][] = [];
+  for (const r of o.reagents ?? []) if (typeof r.reagent?.id === "number") reagents.push([r.reagent.id, Math.max(1, r.quantity ?? 1)]);
+  return { status, name: o.name ?? null, outputId: o.crafted_item?.id ?? o.alliance_crafted_item?.id ?? null, outputQty: qty > 0 ? qty : 1, reagents };
+}
+
+export async function recipeDetail(id: number): Promise<RecipeDetail> {
+  const r = await staticGet<unknown>(`/data/wow/recipe/${id}`);
+  return parseRecipe(r.status, r.data);
+}
+
+// The icon image of an item, or null when Blizzard has none.
+export async function itemIcon(id: number): Promise<{ status: number; url: string | null }> {
+  const r = await staticGet<{ assets?: { key?: string; value?: string }[] }>(`/data/wow/media/item/${id}`);
+  const a = (r.data?.assets ?? []).find((x) => x.key === "icon") ?? r.data?.assets?.[0];
+  const url = a?.value && /^https:\/\/render[\w.-]*\.worldofwarcraft\.com\//.test(a.value) ? a.value : null;
+  return { status: r.status, url };
 }

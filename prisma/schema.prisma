@@ -238,6 +238,8 @@ model ItemInfo {
   vendorSell Int? // copper
   maxStack   Int?
   bindType   Int? // 0 none, 1 on pickup, 2 on equip, 3 on use, 4 quest
+  icon       String? // image URL from Blizzard's media endpoint
+  iconTried  DateTime? // when the icon was last asked for, found or not
   updatedAt  DateTime @updatedAt
 }
 
@@ -423,4 +425,20 @@ model ItemFlow {
 model FlowDay {
   day   DateTime @id @db.Date
   hours Float
+}
+
+// Every recipe of every profession, from Blizzard's game data (src/lib/static-import.ts).
+model Recipe {
+  id         Int      @id // Blizzard's recipe id
+  profession String
+  tier       String?
+  category   String?
+  name       String
+  outputId   Int? // null for recipes that make no item (enchants)
+  outputQty  Float    @default(1)
+  reagents   Json     @default("[]") // [[itemId, quantity], ...]
+  fetchedAt  DateTime? // null until its details are in
+
+  @@index([profession])
+  @@index([outputId])
 }

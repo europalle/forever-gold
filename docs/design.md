@@ -33,6 +33,6 @@ One top bar (`src/components/header.tsx`): mark, labelled sections with the gold
 
 `lint.mjs --app src` and `inspect.mjs --app <url>` from the skill. The inspector cannot sign in: run a small proxy that adds the session cookie (see the scratch script used on 2026-11-13: log in with Playwright, forward port 3078 to the dev server with the cookie). Known, accepted warnings: monospace figures (the style's face), the chart tooltip's shadow (an overlay), zero-padding in prices.
 
-## Not done yet
+## Icons
 
-Item icons. They need Blizzard's media endpoint per item (or a member's addon to record icon file names); until then the quality bar stands in.
+`ItemIcon` shows Blizzard's icon (URL in `ItemInfo.icon`, filled by the static import) in a 1px border of the quality colour; without one, the quality bar.

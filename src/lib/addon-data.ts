@@ -90,7 +90,7 @@ export async function buildAddonData(userId: string, displayName: string, now = 
     .map((s) => s.itemId);
 
   // Items on the market whose details the site does not know yet.
-  const known = new Set((await db.itemInfo.findMany({ select: { id: true } })).map((i) => i.id));
+  const known = new Set((await db.itemInfo.findMany({ where: { classId: { not: null } }, select: { id: true } })).map((i) => i.id));
   const nameless = await db.$queryRaw<{ itemId: number }[]>`
     SELECT DISTINCT l."itemId" FROM "LedgerEntry" l
     LEFT JOIN "Item" i ON i.id = l."itemId"

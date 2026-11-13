@@ -80,7 +80,7 @@ export type Mover = MarketItem & { goldPerDay: number; trend: number | null };
 // TSM's market value. Average sale price is skipped: a single odd sale skews it.
 // The window around a user's highest character, from addon or TSM uploads.
 export async function levelWindowFor(userId: string, spread = 10): Promise<{ window: LevelWindow; level: number | null; known: number }> {
-  const [top, known] = await Promise.all([db.character.aggregate({ where: { userId }, _max: { level: true } }), db.itemInfo.count()]);
+  const [top, known] = await Promise.all([db.character.aggregate({ where: { userId }, _max: { level: true } }), db.itemInfo.count({ where: { classId: { not: null } } })]);
   const level = top._max.level;
   return { level, known, window: level ? { min: Math.max(1, level - spread), max: level + spread } : null };
 }
@@ -225,9 +225,10 @@ export async function sparks(ids: number[], days = 7): Promise<Map<number, numbe
   return out;
 }
 
-// Item quality (0 poor to 4 epic) where a member's addon has looked the item up.
-export async function qualities(ids: number[]): Promise<Map<number, number>> {
+// Quality (0 poor to 4 epic, from members' addons) and icon (from Blizzard) per item.
+export type ItemMeta = { quality: number | null; icon: string | null };
+export async function itemMeta(ids: number[]): Promise<Map<number, ItemMeta>> {
   if (!ids.length) return new Map();
-  const rows = await db.itemInfo.findMany({ where: { id: { in: ids }, quality: { not: null } }, select: { id: true, quality: true } });
-  return new Map(rows.map((r) => [r.id, r.quality!]));
+  const rows = await db.itemInfo.findMany({ where: { id: { in: ids } }, select: { id: true, quality: true, icon: true } });
+  return new Map(rows.map((r) => [r.id, { quality: r.quality, icon: r.icon }]));
 }
