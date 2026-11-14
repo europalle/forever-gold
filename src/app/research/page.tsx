@@ -103,7 +103,7 @@ async function Yields({ kind }: { kind: string }) {
   if (!table.length) return <Empty what={what} />;
   return (
     <>
-      <p className="mb-3 text-sm text-muted"><span className="num text-text">{total}</span> recorded. Worth per kill or node at today's cheapest listings; 5+ samples first</p>
+      <p className="mb-3 text-sm text-muted"><span className="num text-text">{total}</span> recorded. Worth per kill or node at the cheapest listings now; 5+ samples first</p>
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
         {table.map((m) => (
           <Card
