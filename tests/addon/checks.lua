@@ -209,3 +209,25 @@ do
   check(#TEST_LOG == before + 3, "/fg live switches alerts off")
   print("signals: tooltip, login alerts and live alerts")
 end
+
+-- Panel placement: beside the auction house when it is on screen, at the
+-- screen's right when an auction addon has parked it away, your spot once dragged.
+do
+  UIParent.GetWidth = function() return 1920 end
+  UIParent.GetHeight = function() return 1080 end
+  local ah = AuctionHouseFrame
+  ah.IsVisible = function() return true end
+  ah.GetLeft = function() return 100 end; ah.GetRight = function() return 900 end
+  ah.GetTop = function() return 900 end; ah.GetBottom = function() return 300 end
+  FireEvent("AUCTION_HOUSE_SHOW")
+  check(FG_NS.placePanel() == "right", "panel docks to the right of the auction house")
+  ah.GetLeft = function() return 1000 end; ah.GetRight = function() return 1800 end
+  check(FG_NS.placePanel() == "left", "panel docks to the left when the right has no room")
+  ah.GetLeft = function() return -5000 end; ah.GetRight = function() return -4200 end
+  check(FG_NS.placePanel() == "screen", "panel stays on screen when the auction window is parked off screen")
+  ForeverGoldDB.settings.panelPos = { "CENTER", "CENTER", 10, 20 }
+  check(FG_NS.placePanel() == "saved", "a dragged position is kept")
+  SlashCmdList.FOREVERGOLD("dock")
+  check(ForeverGoldDB.settings.panelPos == nil, "/fg dock forgets the dragged position")
+  print("panel placement: docked, flipped, on screen, saved")
+end

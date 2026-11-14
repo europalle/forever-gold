@@ -2,7 +2,7 @@
 local ADDON, FG = ...
 _G.ForeverGold = FG
 
-FG.version = "0.4.0"
+FG.version = "0.4.1"
 FG.GOLD = "|cffffd100"
 FG.MUTED = "|cff9d9d9d"
 FG.GOOD = "|cff40ff40"
@@ -203,6 +203,10 @@ SlashCmdList.FOREVERGOLD = function(msg)
   elseif msg == "live" and s then
     s.live = not s.live
     FG.print("Live price alerts at the auction house " .. (s.live and "on." or "off."))
+  elseif msg == "dock" and s then
+    s.panelPos = nil
+    if FG.placePanel then FG.placePanel() end
+    FG.print("Panel docked to the auction house window again.")
   elseif msg == "status" then
     FG.status()
   elseif msg == "options" or msg == "settings" then
@@ -213,6 +217,6 @@ SlashCmdList.FOREVERGOLD = function(msg)
   elseif msg == "" or msg == "panel" then
     if FG.togglePanel then FG.togglePanel() end
   else
-    FG.print("/fg: panel. /fg options: settings. /fg status: what the addon sees. /fg tooltip, /fg chat, /fg live: switch those on or off.")
+    FG.print("/fg: panel. /fg options: settings. /fg status: what the addon sees. /fg dock: put the panel back beside the auction house. /fg tooltip, /fg chat, /fg live: switch those on or off.")
   end
 end

@@ -161,7 +161,13 @@ local function create()
   panel:EnableMouse(true)
   panel:RegisterForDrag("LeftButton")
   panel:SetScript("OnDragStart", panel.StartMoving)
-  panel:SetScript("OnDragStop", panel.StopMovingOrSizing)
+  panel:SetScript("OnDragStop", function(self)
+    self:StopMovingOrSizing()
+    -- Remember where you put it; /fg dock forgets.
+    local point, _, rel, x, y = call(self, "GetPoint", 1)
+    if point and FG.db then FG.db.settings.panelPos = { point, rel or point, x or 0, y or 0 } end
+  end)
+  call(panel, "SetClampedToScreen", true)
   panel:Hide()
   table.insert(UISpecialFrames, "ForeverGoldPanel") -- Escape closes it
 
@@ -245,17 +251,56 @@ function FG.togglePanel()
   if not panel then create() end
   if panel:IsShown() then panel:Hide() else
     state.autoShown = false
+    FG.placePanel()
     panel:Show()
   end
 end
 
+-- Where the panel goes. Your own spot, once you have dragged it; else docked
+-- to the auction house window's right edge (its left edge when there is no
+-- room). TSM and other auction addons replace that window and park the
+-- default one off screen, so the dock is only used when the window is really
+-- visible on screen; otherwise the panel sits at the right of the screen.
+local function call(obj, method, ...)
+  if obj and type(obj[method]) == "function" then return FG.try(obj[method], obj, ...) end
+end
+
+local function onScreen(f)
+  if not f or call(f, "IsVisible") == false then return false end
+  local l, r, t, b = call(f, "GetLeft"), call(f, "GetRight"), call(f, "GetTop"), call(f, "GetBottom")
+  if type(l) ~= "number" or type(r) ~= "number" or type(t) ~= "number" or type(b) ~= "number" then return false end
+  local w, h = call(UIParent, "GetWidth") or 0, call(UIParent, "GetHeight") or 0
+  if w <= 0 or h <= 0 then return true end
+  return r > 50 and l < w - 50 and t > 50 and b < h - 50 and (call(f, "GetAlpha") or 1) > 0.05
+end
+
+function FG.placePanel()
+  if not panel then return end
+  panel:ClearAllPoints()
+  local pos = FG.db and FG.db.settings.panelPos
+  if type(pos) == "table" and pos[1] then
+    panel:SetPoint(pos[1], UIParent, pos[2] or pos[1], pos[3] or 0, pos[4] or 0)
+    return "saved"
+  end
+  local ah = _G.AuctionHouseFrame
+  if onScreen(ah) then
+    local room = (call(UIParent, "GetWidth") or 0) - (call(ah, "GetRight") or 0)
+    if room > 0 and room < 370 and (call(ah, "GetLeft") or 0) > 370 then
+      panel:SetPoint("TOPRIGHT", ah, "TOPLEFT", -2, 0)
+      return "left"
+    end
+    panel:SetPoint("TOPLEFT", ah, "TOPRIGHT", 2, 0)
+    return "right"
+  end
+  panel:SetPoint("RIGHT", UIParent, "RIGHT", -40, 40)
+  return "screen"
+end
+
 FG.on("AUCTION_HOUSE_SHOW", function()
   if not panel then create() end
-  local ah = _G.AuctionHouseFrame
-  if ah then
-    panel:ClearAllPoints()
-    panel:SetPoint("TOPLEFT", ah, "TOPRIGHT", 2, 0)
-  end
+  FG.placePanel()
+  -- Auction addons build their window a moment after this event: place again.
+  if C_Timer then C_Timer.After(0.3, FG.placePanel) end
   state.autoShown = true
   panel:Show()
 end)
