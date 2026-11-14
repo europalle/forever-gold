@@ -2,7 +2,7 @@
 local ADDON, FG = ...
 _G.ForeverGold = FG
 
-FG.version = "0.4.1"
+FG.version = "0.5.0"
 FG.GOLD = "|cffffd100"
 FG.MUTED = "|cff9d9d9d"
 FG.GOOD = "|cff40ff40"
@@ -203,6 +203,11 @@ SlashCmdList.FOREVERGOLD = function(msg)
   elseif msg == "live" and s then
     s.live = not s.live
     FG.print("Live price alerts at the auction house " .. (s.live and "on." or "off."))
+  elseif msg:match("^batch") and s then
+    local n = tonumber(msg:match("(%d+)"))
+    if n and n >= 1 and n <= 200 then s.batch = n end
+    FG.print("Shopping list covers " .. (s.batch or 5) .. " of each picked recipe.")
+    if FG.refreshPanel then FG.refreshPanel() end
   elseif msg == "dock" and s then
     s.panelPos = nil
     if FG.placePanel then FG.placePanel() end

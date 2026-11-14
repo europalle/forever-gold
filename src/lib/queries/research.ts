@@ -1,7 +1,7 @@
 import { MARKET } from "@/config/player";
 import { SETTINGS } from "@/config/settings";
 import { db } from "../db";
-import { disenchantTable, vendorFlips, yieldTable, type ItemFacts, type LootRow } from "../research";
+import { disenchantTable, dropValue, vendorFlips, yieldTable, type ItemFacts, type LootRow } from "../research";
 import { marketScope } from "../tsm";
 
 // Everything here is pooled across the guild: drop rates and vendor prices are
@@ -42,7 +42,13 @@ export async function yieldResearch(kind: string) {
     where: { kind },
     select: { npcId: true, npcName: true, npcLevel: true, sourceItemId: true, items: true },
   });
-  const table = yieldTable(asRows(rows)).slice(0, 40);
+  const yields = yieldTable(asRows(rows));
+  const price = await cheapest([...new Set(yields.flatMap((m) => m.drops.map((d) => d.itemId)))]);
+  // Worth per kill or node at today's cheapest listings, best first once sampled enough.
+  const table = yields
+    .map((m) => ({ ...m, value: dropValue(m.drops, (id) => price.get(id)) }))
+    .sort((a, b) => Number(b.n >= 5) - Number(a.n >= 5) || b.value - a.value)
+    .slice(0, 40);
   const names = await itemNames([...new Set(table.flatMap((m) => m.drops.map((d) => d.itemId)))]);
   return { total: rows.length, table, names };
 }
@@ -64,4 +70,22 @@ export async function vendorResearch() {
 export async function trainerResearch() {
   const services = await db.trainerService.findMany({ orderBy: [{ skill: "asc" }, { skillLevel: "asc" }, { name: "asc" }] });
   return services;
+}
+
+// Cheapest listing per item from the latest scan.
+export async function cheapest(ids: number[]): Promise<Map<number, number>> {
+  if (!ids.length) return new Map();
+  const latest = await db.snapshot.findFirst({ where: { kind: "MARKET", scope: marketScope(MARKET) }, orderBy: { sourceUpdatedAt: "desc" } });
+  if (!latest) return new Map();
+  const rows = await db.marketPrice.findMany({ where: { snapshotId: latest.id, itemId: { in: ids }, minBuyout: { not: null } }, select: { itemId: true, minBuyout: true } });
+  return new Map(rows.map((r) => [r.itemId, r.minBuyout!]));
+}
+
+// Expected value of one disenchant per group, keyed "quality|type|bracket".
+export async function disenchantValues(): Promise<Record<string, { v: number; n: number }>> {
+  const { table } = await disenchantResearch();
+  const price = await cheapest([...new Set(table.flatMap((g) => g.drops.map((d) => d.itemId)))]);
+  const out: Record<string, { v: number; n: number }> = {};
+  for (const g of table) out[`${g.quality}|${g.type}|${g.bracket}`] = { v: dropValue(g.drops, (id) => price.get(id)), n: g.n };
+  return out;
 }

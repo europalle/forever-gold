@@ -25,7 +25,7 @@ local function addLines(tooltip, id)
   local call = d.calls and d.calls[id]
   local sig = FG.signal and FG.signal(id)
   local here, others = owned(id)
-  if not p and not call and not sig and not FG.live[id] and here + others == 0 then return end
+  if not p and not call and not sig and not FG.live[id] and here + others == 0 and not (FG.disenchantValue and FG.disenchantValue(id)) then return end
 
   tooltip:AddLine(" ")
   tooltip:AddLine("Forever Gold", 1, 0.82, 0)
@@ -55,6 +55,14 @@ local function addLines(tooltip, id)
     tooltip:AddDoubleLine("  Signal", FG.signalText(sig), 1, 1, 1, 1, 1, 1)
     if sig.f then tooltip:AddDoubleLine("  Usual (week) · in 24h", FG.money(sig.f) .. FG.MUTED .. " · " .. FG.R .. FG.money(sig.e), 1, 1, 1, 1, 1, 1) end
     if sig.t and IsShiftKeyDown and IsShiftKeyDown() then tooltip:AddLine("  " .. sig.t, 0.62, 0.62, 0.62, true) end
+  end
+  local de, deFrom
+  if FG.disenchantValue then de, deFrom = FG.disenchantValue(id) end
+  if de then
+    local now = FG.priceNow(id)
+    local sell = now and now * (1 - (d.cut or 0.05))
+    local verdict = sell and (de > sell and (FG.GOOD .. "  disenchant" .. FG.R) or (FG.GOLD .. "  sell" .. FG.R)) or ""
+    tooltip:AddDoubleLine("  Disenchants for (" .. (deFrom or "?") .. ")", FG.money(de) .. verdict, 1, 1, 1, 1, 1, 1)
   end
   if here + others > 0 then
     tooltip:AddDoubleLine("  You have", others > 0 and string.format("%d · alts %d", here, others) or tostring(here), 1, 1, 1, 1, 1, 1)

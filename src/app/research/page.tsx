@@ -103,14 +103,19 @@ async function Yields({ kind }: { kind: string }) {
   if (!table.length) return <Empty what={what} />;
   return (
     <>
-      <p className="mb-3 text-sm text-muted"><span className="num text-text">{total}</span> recorded, most sampled first</p>
+      <p className="mb-3 text-sm text-muted"><span className="num text-text">{total}</span> recorded. Worth per kill or node at today's cheapest listings; 5+ samples first</p>
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
         {table.map((m) => (
           <Card
             key={m.npcId}
             title={m.name ?? `NPC ${m.npcId}`}
             note={m.levels ? `Level ${m.levels[0] === m.levels[1] ? m.levels[0] : `${m.levels[0]}-${m.levels[1]}`}` : undefined}
-            action={<span className="num text-muted" title="Times recorded">{m.n}</span>}
+            action={
+              <span className="text-right">
+                <Money c={m.value || null} />
+                <span className="num ml-2 text-xs text-muted" title="Times recorded">n {m.n}</span>
+              </span>
+            }
           >
             <Drops drops={m.drops} names={names} />
           </Card>

@@ -221,6 +221,7 @@ do
   ah.GetTop = function() return 900 end; ah.GetBottom = function() return 300 end
   FireEvent("AUCTION_HOUSE_SHOW")
   check(FG_NS.placePanel() == "right", "panel docks to the right of the auction house")
+  check(type(ForeverGoldPanel) == "table" and type(ForeverGoldPanel.note) == "table" and type(ForeverGoldPanel.copy) == "table", "the panel is built completely")
   ah.GetLeft = function() return 1000 end; ah.GetRight = function() return 1800 end
   check(FG_NS.placePanel() == "left", "panel docks to the left when the right has no room")
   ah.GetLeft = function() return -5000 end; ah.GetRight = function() return -4200 end
@@ -230,4 +231,75 @@ do
   SlashCmdList.FOREVERGOLD("dock")
   check(ForeverGoldDB.settings.panelPos == nil, "/fg dock forgets the dragged position")
   print("panel placement: docked, flipped, on screen, saved")
+end
+
+-- Crafting, shopping, disenchant value, mail list, undercuts.
+do
+  local d = ForeverGoldData
+  for k in pairs(FG_NS.live) do FG_NS.live[k] = nil end -- earlier checks left live prices behind
+  d.p[4232] = { m = 100, v = 100, r = 50, d = 50 }
+  d.p[4304] = { m = 500, v = 500, r = 50, d = 50 }
+  d.p[4291] = { m = 600, v = 600, r = 50, d = 50 }
+  d.craft = { { o = 8173, n = "Thick Armor Kit", g = 300, c = 3000, q = 1, be = 1.1, r = { { 4304, 5 }, { 4291, 1 } } } }
+  d.vend = { [4291] = 500 }
+  d.bank = "Bubbi Banken"
+  local c = ForeverGoldDB.chars["Bubbi Hunter"]
+  c.bags = { [4304] = 18, [4232] = 12 }
+  check(FG_NS.canMake(d.craft[1]) == 0, "no craft without every reagent")
+  c.bags[4291] = 2
+  check(FG_NS.canMake(d.craft[1]) == 2, "crafts limited by the scarcest reagent")
+  check(#FG_NS.shopping() == 0, "nothing to shop for until a recipe is picked")
+  FG_NS.picks[8173] = true
+  ForeverGoldDB.settings.batch = 5
+  local shop = FG_NS.shopping()
+  -- 5 kits need 25 leather (have 18) and 5 thread (have 2).
+  check(#shop == 2 and shop[1].id == 4304 and shop[1].buy == 7 and shop[2].buy == 3, "shopping list is what is missing for the batch")
+  check(shop[1].max == 550 and shop[2].vendor == 500, "max price keeps the craft paying; vendor price carried")
+  local str = FG_NS.shoppingString()
+  check(str:find("/exact/x7/5s50c") and not str:find("x3"), "TSM search string, vendor reagents left out")
+  SlashCmdList.FOREVERGOLD("batch 10")
+  check(ForeverGoldDB.settings.batch == 10 and FG_NS.shopping()[1].buy == 32, "/fg batch changes the batch")
+
+  -- Disenchant value: the guild's figure with five samples, else TSM's.
+  ForeverGoldDB.items[15347] = { q = 2, c = 4, rl = 23, il = 28, s = 2 }
+  d.de = { ["2|armor|21-25"] = { v = 900, n = 6 } }
+  local v, from = FG_NS.disenchantValue(15347)
+  check(v == 900 and from == "guild", "disenchant value from the guild's samples")
+  d.de["2|armor|21-25"].n = 2
+  TSM_API = { GetCustomPriceValue = function(src, item) return src == "Destroy" and item == "i:15347" and 700 or nil end }
+  v, from = FG_NS.disenchantValue(15347)
+  check(v == 700 and from == "TSM", "falls back to TSM's destroy value")
+  check(FG_NS.disenchantValue(4304) == nil, "materials have no disenchant value")
+  d.p[15347] = { m = 400, v = 500 }
+  local lines = TEST_TOOLTIP(15347)
+  check(has(lines, "Disenchants for %(TSM%)") and has(lines, "disenchant"), "tooltip compares disenchanting with selling")
+
+  -- Mail list: materials and greens, cooking materials keep 20 on a hunter.
+  ForeverGoldDB.items[4304] = { q = 1, c = 7, s = 6 }
+  ForeverGoldDB.items[3731] = { q = 1, c = 7, s = 8 }
+  d.p[3731] = { m = 50, v = 50 }
+  c.class = "HUNTER"
+  c.bags = { [4304] = 18, [3731] = 26, [15347] = 1 }
+  local mail = FG_NS.mailList()
+  local by = {}
+  for _, m in ipairs(mail) do by[m.id] = m end
+  check(by[4304] and by[4304].n == 18 and by[3731].n == 6 and by[15347].de == 700, "mail list: materials, meat above 20, greens with disenchant value")
+
+  -- Undercuts.
+  c.auctions = { { id = 4304, n = 10, buyout = 560 }, { id = 4232, n = 5, buyout = 90 } }
+  local u = FG_NS.undercuts()
+  check(#u == 1 and u[1].id == 4304 and u[1].now == 500, "undercut auctions found")
+  local before = #TEST_LOG
+  ForeverGoldDB.settings.chat = true
+  FireEvent("OWNED_AUCTIONS_UPDATED")
+  local saw = false
+  for i = before + 1, #TEST_LOG do if TEST_LOG[i]:find("undercut") then saw = true end end
+  check(saw, "undercut warning printed at the auction house")
+  -- Every tab draws its rows.
+  check(FG_NS.showTab("craft") >= 1, "craft tab lists the recipe")
+  check(FG_NS.showTab("shop") == 2, "shop tab lists what to buy")
+  check(FG_NS.showTab("mail") == 3, "mail tab lists what to send")
+  for _, tab in ipairs({ "signals", "sell", "buy" }) do FG_NS.showTab(tab) end
+  FG_NS.showCopy(FG_NS.shoppingString())
+  print("trade: crafts, shopping list, disenchant value, mail list, undercuts")
 end

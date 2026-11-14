@@ -14,6 +14,7 @@ export type CraftView = {
   total: number;
   fromBlizzard: number;
   measured: boolean;
+  vendor: Map<number, number>; // vendor price per unit, where the guild has seen one
 };
 
 // Every recipe the site knows: Blizzard's, plus those the guild's addons read
@@ -91,5 +92,6 @@ export async function craftView(userId: string, profession: string | null, onlyM
     total,
     fromBlizzard: blizz.length,
     measured: here.perDay.size > 0,
+    vendor: vendorBy,
   };
 }

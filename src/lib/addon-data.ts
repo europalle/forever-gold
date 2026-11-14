@@ -9,6 +9,8 @@ import { luaAssign, type LuaOut } from "./lua-write";
 import { board } from "./queries/board";
 import { capForUser, deals } from "./queries/market";
 import { holdings } from "./queries/signals";
+import { craftView } from "./queries/crafting";
+import { disenchantValues } from "./queries/research";
 import { marketScope } from "./tsm";
 
 export const ADDON_DATA_VERSION = 1; // fields are only ever added: older addons ignore what they do not know
@@ -89,6 +91,27 @@ export async function buildAddonData(userId: string, displayName: string, now = 
     .slice(0, ALERT_LIMIT)
     .map((s) => s.itemId);
 
+  // craft = learned recipes that pay: { o = output, n = name, g = profit each,
+  // c = cost, q = output quantity, be = revenue over cost (how far reagent
+  // prices can rise before it stops paying), r = { { id, qty }, ... } }.
+  // vend[id] = vendor price for reagents a vendor sells cheaper.
+  const cv = await craftView(userId, null, true, 30);
+  const craft: LuaOut[] = [];
+  const vend: Record<string, LuaOut> = {};
+  for (const r of cv.rows) {
+    if (r.profit <= 0) continue;
+    craft.push({ o: r.outputId, n: r.name, g: r.profit, c: r.cost, q: r.outputQty, be: Math.round((r.revenue / r.cost) * 100) / 100, pf: r.profession, r: r.reagents.map(([id, qty]) => [id, qty]) });
+    for (const [id] of r.reagents) {
+      const v = cv.vendor.get(id);
+      if (v != null) vend[id] = Math.round(v);
+    }
+  }
+  // de["quality|armor or weapon|bracket"] = { v = expected value, n = samples }
+  const de = await disenchantValues();
+  // The bank alt: the user's lowest character under level 10, when they have more than one.
+  const mine = await db.character.findMany({ where: { userId, level: { not: null } }, select: { name: true, level: true }, orderBy: { level: "asc" } });
+  const bank = mine.length > 1 && (mine[0].level ?? 99) < 10 ? mine[0].name : undefined;
+
   // Items on the market whose details the site does not know yet.
   const known = new Set((await db.itemInfo.findMany({ where: { classId: { not: null } }, select: { id: true } })).map((i) => i.id));
   const nameless = await db.$queryRaw<{ itemId: number }[]>`
@@ -111,6 +134,10 @@ export async function buildAddonData(userId: string, displayName: string, now = 
     lists,
     sig,
     alerts,
+    craft,
+    vend,
+    de,
+    bank,
     signalsAt: signals[0] ? Math.floor(signals[0].at.getTime() / 1000) : 0,
     want,
   };

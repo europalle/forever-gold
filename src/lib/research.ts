@@ -108,3 +108,11 @@ export function vendorFlips(
   }
   return [...best.values()].sort((a, b) => b.profit - a.profit);
 }
+
+// What one loot window is worth at today's prices: each drop's chance times
+// its average quantity times its price. Drops without a price count as nothing.
+export function dropValue(drops: Drop[], price: (itemId: number) => number | null | undefined): number {
+  let v = 0;
+  for (const d of drops) v += d.share * d.avgQty * (price(d.itemId) ?? 0);
+  return Math.round(v);
+}

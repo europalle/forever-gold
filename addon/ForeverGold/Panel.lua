@@ -2,12 +2,17 @@
 -- in the auction house; posting and buying stay with you (or TSM).
 local _, FG = ...
 
+-- Calls a frame method if this client has it.
+local function call(obj, method, ...)
+  if obj and type(obj[method]) == "function" then return FG.try(obj[method], obj, ...) end
+end
+
 local ROWS, ROW_H = 9, 36
-local TABS = { "signals", "sell", "make", "buy", "hold" }
-local TAB_LABEL = { signals = "Signals", sell = "Sell", make = "Make", buy = "Buy", hold = "Hold" }
+local TABS = { "signals", "sell", "craft", "shop", "buy", "mail" }
+local TAB_LABEL = { signals = "Signals", sell = "Sell", craft = "Craft", shop = "Shop", buy = "Buy", mail = "Mail" }
 local state = { tab = "signals", offset = 0, rows = {}, autoShown = false }
 
-local function itemName(id)
+function FG.itemName(id)
   local n = C_Item and C_Item.GetItemNameByID and FG.try(C_Item.GetItemNameByID, id)
   if not n then
     n = FG.try(GetItemInfo, id)
@@ -15,6 +20,7 @@ local function itemName(id)
   end
   return n or ("item " .. id)
 end
+local itemName = FG.itemName
 
 local function itemIcon(id)
   return (C_Item and C_Item.GetItemIconByID and FG.try(C_Item.GetItemIconByID, id)) or 134400 -- question mark
@@ -88,19 +94,55 @@ local function buildRows()
     end
     for _, r in ipairs(mine) do table.insert(out, r) end
     for _, r in ipairs(rest) do table.insert(out, r) end
-  elseif state.tab == "make" then
+    for _, id in ipairs(FG.ownedOnly(l.hold)) do
+      local c = calls[id] or {}
+      table.insert(out, { id = id, title = itemName(id) .. haveText(id), sub = FG.WARN .. "Hold. " .. FG.R .. (c.t or ""), right = "", rightSub = "" })
+    end
+  elseif state.tab == "craft" then
+    -- Raw materials worth turning into something first, then learned recipes
+    -- that pay. Click a recipe to put it on the shopping list.
     for _, m in ipairs(FG.ownedOnly(l.make)) do
       local n = haveCount(m.id)
       table.insert(out, { id = m.id, title = (m.vb or "Make") .. " " .. itemName(m.id) .. haveText(m.id), sub = "Makes " .. itemName(m.o), right = FG.GOOD .. "+" .. FG.R .. FG.money(m.g), rightSub = n > 0 and ("+" .. FG.money(m.g * n) .. " total") or "each" })
+    end
+    for _, c in ipairs(FG.crafts()) do
+      local can = FG.canMake(c)
+      local parts = {}
+      for _, r in ipairs(c.r or {}) do table.insert(parts, r[2] .. " " .. itemName(r[1])) end
+      table.insert(out, {
+        id = c.o,
+        pick = c.o,
+        title = (FG.picks[c.o] and (FG.GOLD .. "+ " .. FG.R) or "") .. itemName(c.o) .. (can > 0 and (FG.GOOD .. "  make " .. can .. FG.R) or ""),
+        sub = table.concat(parts, ", "),
+        right = FG.GOOD .. "+" .. FG.R .. FG.money(c.g),
+        rightSub = can > 0 and ("+" .. FG.money(c.g * can) .. " now") or "each",
+      })
+    end
+  elseif state.tab == "shop" then
+    for _, e in ipairs(FG.shopping()) do
+      local p = FG.priceNow(e.id)
+      local atVendor = e.vendor and p and e.vendor <= p
+      table.insert(out, {
+        id = e.id,
+        title = itemName(e.id) .. FG.MUTED .. " x" .. e.buy .. FG.R,
+        sub = atVendor and ("Vendor sells it for " .. FG.money(e.vendor)) or ("Have " .. e.have .. " of " .. e.qty),
+        right = FG.money(atVendor and e.vendor or p),
+        rightSub = (not atVendor and e.max) and ("pay up to " .. FG.money(e.max)) or "",
+      })
     end
   elseif state.tab == "buy" then
     for _, b in ipairs(l.buy or {}) do
       table.insert(out, { id = b.id, title = itemName(b.id), sub = "Usual " .. FG.money(b.u) .. ". Check the exact item first.", right = FG.money(b.pr), rightSub = "+" .. FG.money(b.g) .. " each" })
     end
   else
-    for _, id in ipairs(FG.ownedOnly(l.hold)) do
-      local c = calls[id] or {}
-      table.insert(out, { id = id, title = itemName(id) .. haveText(id), sub = c.t or "", right = "", rightSub = "" })
+    for _, m in ipairs(FG.mailList()) do
+      table.insert(out, {
+        id = m.id,
+        title = itemName(m.id) .. FG.MUTED .. " x" .. m.n .. FG.R,
+        sub = m.de and (m.sub .. ": " .. FG.money(m.de) .. " against " .. FG.money(m.sell)) or m.sub,
+        right = FG.money(m.value),
+        rightSub = "",
+      })
     end
   end
   return out
@@ -122,8 +164,15 @@ function refresh()
   local l = d and d.lists or {}
   for _, key in ipairs(TABS) do
     local b = panel.tabs[key]
-    local list = key == "signals" and (d and d.alerts or {}) or key == "buy" and (l.buy or {}) or FG.ownedOnly(l[key])
-    b:SetText(TAB_LABEL[key] .. " " .. #list)
+    local count
+    if key == state.tab then count = #rows
+    elseif key == "signals" then count = #(d and d.alerts or {})
+    elseif key == "sell" then count = #FG.ownedOnly(l.sell) + #FG.ownedOnly(l.hold)
+    elseif key == "craft" then count = #FG.ownedOnly(l.make) + #FG.crafts()
+    elseif key == "shop" then count = #FG.shopping()
+    elseif key == "buy" then count = #(l.buy or {})
+    else count = nil end
+    b:SetText(TAB_LABEL[key] .. (count and count > 0 and (" " .. count) or ""))
     if key == state.tab then b:LockHighlight() else b:UnlockHighlight() end
   end
   for i = 1, ROWS do
@@ -141,7 +190,14 @@ function refresh()
       row:Hide()
     end
   end
-  panel.empty:SetText(state.tab == "buy" and "No deals right now." or state.tab == "signals" and "No strong signals right now. Most of the time the right trade is none." or "Nothing of yours here. Your bags, bank and mail count.")
+  local EMPTY = {
+    craft = "No learned recipe pays right now. Open your profession windows so the addon reads them.",
+    shop = "Click recipes on the Craft tab to build a shopping list.",
+    mail = "Nothing in your bags worth sending.",
+  }
+  panel.note:SetText(state.tab == "craft" and "Click a recipe to add it to the Shop tab." or state.tab == "shop" and ("For " .. (FG.db and FG.db.settings.batch or 5) .. " of each picked recipe. /fg batch N changes it.") or state.tab == "mail" and ("Worth sending" .. (d and d.bank and (" to " .. d.bank) or "") .. ". You attach and send.") or "Click a row to search for it. You post and buy.")
+  if panel.copy then panel.copy:SetShown(state.tab == "shop" and #rows > 0) end
+  panel.empty:SetText(EMPTY[state.tab] or state.tab == "buy" and "No deals right now." or state.tab == "signals" and "No strong signals right now. Most of the time the right trade is none." or "Nothing of yours here. Your bags, bank and mail count.")
   panel.empty:SetShown(#rows == 0)
   panel.more:SetText(#rows > ROWS and string.format("%d-%d of %d · scroll for more", state.offset + 1, math.min(#rows, state.offset + ROWS), #rows) or "")
 end
@@ -183,8 +239,8 @@ local function create()
   local prev
   for _, key in ipairs(TABS) do
     local b = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
-    b:SetSize(62, 22)
-    if prev then b:SetPoint("LEFT", prev, "RIGHT", 3, 0) else b:SetPoint("TOPLEFT", 16, -58) end
+    b:SetSize(53, 22)
+    if prev then b:SetPoint("LEFT", prev, "RIGHT", 2, 0) else b:SetPoint("TOPLEFT", 14, -58) end
     b:SetScript("OnClick", function()
       state.tab = key
       state.offset = 0
@@ -218,7 +274,14 @@ local function create()
     row.rightSub = row:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
     row.rightSub:SetPoint("BOTTOMRIGHT", -2, 1)
     row:SetScript("OnClick", function(self)
-      if self.data then FG.search(itemName(self.data.id)) end
+      if not self.data then return end
+      if self.data.pick then
+        -- A recipe: on or off the shopping list.
+        FG.picks[self.data.pick] = not FG.picks[self.data.pick] or nil
+        refresh()
+      else
+        FG.search(itemName(self.data.id))
+      end
     end)
     row:SetScript("OnEnter", function(self)
       if not self.data then return end
@@ -244,6 +307,15 @@ local function create()
   local note = panel:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
   note:SetPoint("BOTTOMLEFT", 20, 16)
   note:SetText("Click a row to search for it. You post and buy.")
+  panel.note = note
+  -- The shopping list as a search for TSM's Shopping tab, to copy with Ctrl+C.
+  local copy = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
+  copy:SetSize(96, 20)
+  copy:SetPoint("BOTTOMRIGHT", -16, 12)
+  copy:SetText("Copy for TSM")
+  copy:SetScript("OnClick", function() FG.showCopy(FG.shoppingString()) end)
+  copy:Hide()
+  panel.copy = copy
   panel:SetScript("OnShow", refresh)
 end
 
@@ -261,10 +333,6 @@ end
 -- room). TSM and other auction addons replace that window and park the
 -- default one off screen, so the dock is only used when the window is really
 -- visible on screen; otherwise the panel sits at the right of the screen.
-local function call(obj, method, ...)
-  if obj and type(obj[method]) == "function" then return FG.try(obj[method], obj, ...) end
-end
-
 local function onScreen(f)
   if not f or call(f, "IsVisible") == false then return false end
   local l, r, t, b = call(f, "GetLeft"), call(f, "GetRight"), call(f, "GetTop"), call(f, "GetBottom")
@@ -310,3 +378,50 @@ FG.on("AUCTION_HOUSE_CLOSED", function()
 end)
 
 FG.on("BAG_UPDATE_DELAYED", function() C_Timer.After(1.2, refresh) end)
+
+-- A small box with text to copy: WoW has no clipboard access, so Ctrl+C it is.
+local copyBox
+function FG.showCopy(text)
+  if not copyBox then
+    copyBox = CreateFrame("Frame", "ForeverGoldCopy", UIParent, "BackdropTemplate")
+    copyBox:SetSize(420, 70)
+    copyBox:SetPoint("CENTER")
+    copyBox:SetFrameStrata("DIALOG")
+    copyBox:SetBackdrop({ bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background", edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border", tile = true, tileSize = 32, edgeSize = 32, insets = { left = 11, right = 12, top = 12, bottom = 11 } })
+    local label = copyBox:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    label:SetPoint("TOPLEFT", 18, -14)
+    label:SetText("Ctrl+C, then paste into TSM's Shopping search. Escape closes.")
+    local eb = CreateFrame("EditBox", nil, copyBox, "InputBoxTemplate")
+    eb:SetSize(380, 20)
+    eb:SetPoint("BOTTOMLEFT", 22, 16)
+    eb:SetAutoFocus(true)
+    eb:SetScript("OnEscapePressed", function() copyBox:Hide() end)
+    copyBox.eb = eb
+    table.insert(UISpecialFrames, "ForeverGoldCopy")
+  end
+  copyBox.eb:SetText(text or "")
+  copyBox.eb:HighlightText()
+  copyBox:Show()
+end
+
+-- Opens the panel on one tab; returns how many rows it shows.
+function FG.showTab(tab)
+  if not panel then create() end
+  state.tab, state.offset = tab, 0
+  FG.placePanel()
+  panel:Show()
+  refresh()
+  return #state.rows
+end
+
+-- At the mailbox, on any character but the bank alt: open on the Mail tab.
+FG.on("MAIL_SHOW", function()
+  local d = FG.data()
+  if not d or (d.bank and d.bank == FG.playerName()) then return end
+  if #FG.mailList() == 0 then return end
+  FG.showTab("mail")
+  state.autoShown = true
+end)
+FG.on("MAIL_CLOSED", function()
+  if panel and state.autoShown and state.tab == "mail" then panel:Hide() end
+end)
